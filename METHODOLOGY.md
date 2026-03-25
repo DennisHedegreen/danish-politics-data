@@ -77,10 +77,10 @@ We use **Pearson r** to measure the linear relationship between a socioeconomic 
 
 | r value | Interpretation | What you can write |
 |---|---|---|
-| ±0.65 or above | Strong | "Data shows a clear pattern." |
-| ±0.40–0.65 | Moderate | "There is a tendency." |
-| ±0.20–0.40 | Weak | "A weak link exists — verify with other sources." |
-| Below ±0.20 | None | Do not write a causal or pattern claim. |
+| ±0.70 or above | Strong | "Data shows a clear pattern." |
+| ±0.50–0.70 | Moderate | "There is a tendency." |
+| ±0.30–0.50 | Weak | "A weak link exists — verify with other sources." |
+| Below ±0.30 | None | Do not write a pattern claim. The data does not support it. |
 
 ### Direction
 
@@ -97,7 +97,7 @@ These rules apply to how the tool presents findings:
 2. **The raw r value is always shown.** Journalists can see the exact number, not just a label.
 3. **Causation is never claimed.** Every finding includes the note: "This is a correlation, not a cause."
 4. **The source is always cited.** Every finding includes the exact dataset and licence.
-5. **No selective filtering.** If a metric shows no pattern (r < 0.20), that result is shown — not hidden.
+5. **No selective filtering.** If a metric shows no pattern (r < 0.30), that result is shown — not hidden.
 6. **The tool does not editorialize headlines.** The headlines ("A tendency is visible") are based solely on the r value threshold — not on whether the result is politically convenient.
 
 ---

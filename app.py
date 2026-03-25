@@ -114,14 +114,14 @@ def build_finding(corr, metric_label, party, year, merged):
 
     note = f"Pearson r = {corr:.2f} · {len(merged)} municipalities · Danmarks Statistik (CC 4.0 BY)"
 
-    if abs_r < 0.20:
+    if abs_r < 0.30:
         return (
             "weak",
             "NO PATTERN",
-            f"No pattern found.",
+            f"No consistent pattern found.",
             f"The data shows no consistent relationship between {m_short} and votes for {p_short} across {len(merged)} municipalities. "
             f"If you were looking for a story here — the data does not support it.",
-            f"Write: <em>\"Data from {len(merged)} Danish municipalities shows no meaningful link between {m_short} and support for {p_short} in {year}.\"</em>",
+            f"Write: <em>\"Data from {len(merged)} Danish municipalities shows no consistent relationship between {m_short} and support for {p_short} in {year} (abs(r) below 0.30).\"</em>",
             note
         )
 
@@ -145,16 +145,16 @@ def build_finding(corr, metric_label, party, year, merged):
     copy_sentence = (
         f"Write: <em>\"In the {year} election, municipalities with {direction} {m_short} "
         f"gave on average {gap:.1f} percentage points more to {p_short}. "
-        f"The pattern holds across all {len(merged)} Danish municipalities. "
+        f"Based on data from {len(merged)} Danish municipalities. "
         f"(Source: Danmarks Statistik, CC 4.0 BY)\"</em>"
     )
 
-    if abs_r >= 0.65:
-        return "strong",   "STRONG PATTERN · r = {:.2f}".format(corr),   "Municipalities with {direction} {m} tend to vote significantly more for {p}.".format(direction=direction, m=m_short, p=p_short), concrete, copy_sentence, note
-    elif abs_r >= 0.40:
-        return "moderate", "MODERATE PATTERN · r = {:.2f}".format(corr), "Municipalities with {direction} {m} tend to vote more for {p}.".format(direction=direction, m=m_short, p=p_short),              concrete, copy_sentence, note
+    if abs_r >= 0.70:
+        return "strong",   "STRONG PATTERN · r = {:.2f}".format(corr),   "Municipalities with {direction} {m} tend to vote more for {p}.".format(direction=direction, m=m_short, p=p_short), concrete, copy_sentence, note
+    elif abs_r >= 0.50:
+        return "moderate", "MODERATE PATTERN · r = {:.2f}".format(corr), "Municipalities with {direction} {m} tend to vote more for {p}.".format(direction=direction, m=m_short, p=p_short), concrete, copy_sentence, note
     else:
-        return "weak",     "WEAK PATTERN · r = {:.2f}".format(corr),     "A weak tendency: municipalities with {direction} {m} lean slightly toward {p}.".format(direction=direction, m=m_short, p=p_short), concrete, copy_sentence, note
+        return "weak",     "WEAK PATTERN · r = {:.2f}".format(corr),     "Municipalities with {direction} {m} show a weak tendency toward {p}.".format(direction=direction, m=m_short, p=p_short), concrete, copy_sentence, note
 
 # ── data loaders ──────────────────────────────────────────────────────────────
 
@@ -331,9 +331,9 @@ def get_metric_series(metric_key, year, pop, _income, _social, _crime, _cars, _d
 def corr_strength_label(r):
     a = abs(r)
     direction = "↑" if r > 0 else "↓"
-    if a >= 0.65: return f"{direction} Strong ({r:.2f})"
-    if a >= 0.40: return f"{direction} Moderate ({r:.2f})"
-    if a >= 0.20: return f"{direction} Weak ({r:.2f})"
+    if a >= 0.70: return f"{direction} Strong ({r:.2f})"
+    if a >= 0.50: return f"{direction} Moderate ({r:.2f})"
+    if a >= 0.30: return f"{direction} Weak ({r:.2f})"
     return f"None ({r:.2f})"
 
 @st.cache_data
@@ -510,10 +510,10 @@ if page == "Explore":
         def how_to_read():
             with st.expander("How to read this result"):
                 st.markdown("""
-**STRONG PATTERN (r ≥ 0.65)** — Write: *"Data from 98 municipalities shows a clear link."*
-**MODERATE PATTERN (r 0.40–0.65)** — Write: *"There is a consistent tendency."*
-**WEAK PATTERN (r 0.20–0.40)** — Mention it, but add: *"the link is not strong."*
-**NO PATTERN (r below 0.20)** — Do not write a pattern claim. The data does not support it.
+**STRONG PATTERN (abs(r) ≥ 0.70)** — Write: *"Data from 98 municipalities shows a clear link."*
+**MODERATE PATTERN (abs(r) 0.50–0.70)** — Write: *"There is a consistent tendency."*
+**WEAK PATTERN (abs(r) 0.30–0.50)** — Mention it, but add: *"the link is not strong."*
+**NO PATTERN (abs(r) below 0.30)** — Do not write a pattern claim. The data does not support it.
 
 Positive r = both go up together. Negative r = they go in opposite directions.
 
@@ -607,25 +607,51 @@ Positive r = both go up together. Negative r = they go in opposite directions.
             ranked = sorted(results, key=lambda x: abs(x["r"]), reverse=True)
             # Bar chart first — most informative view
             summary = pd.DataFrame([{"Factor": r["factor"], "r": r["r"], "Strength": r["strength"]} for r in ranked])
-            st.markdown("<p style='font-size:0.75rem;color:#aaaabc;margin-bottom:0.3rem;'>All factors ranked. Positive = more votes where factor is higher. Negative = opposite.</p>", unsafe_allow_html=True)
+            st.markdown("<p style='font-size:0.75rem;color:#aaaabc;margin-bottom:0.3rem;'>Results are ranked by correlation strength (absolute value). Positive = more votes where factor is higher. Negative = more votes where factor is lower.</p>", unsafe_allow_html=True)
             st.bar_chart(summary.set_index("Factor")["r"])
-            # Show a finding box for every factor with |r| ≥ 0.20
-            meaningful = [r for r in ranked if abs(r["r"]) >= 0.20]
-            no_pattern = [r for r in ranked if abs(r["r"]) < 0.20]
+            # Compute inter-factor overlaps
+            overlap_notes = {}
+            if len(s_metric_keys) >= 2:
+                factor_series = {}
+                for mk in s_metric_keys:
+                    m_info = next(m for m in METRIC_OPTIONS if m[0] == mk)
+                    ms = get_metric_series(m_info[2], s_year, pop, income_df, social_df, crime_df, cars_df, divorce_df, employment_df, education_df, age65_df)
+                    if not ms.empty:
+                        factor_series[mk] = ms.set_index("municipality")["metric"]
+                rank_order = {r["factor"]: i for i, r in enumerate(ranked)}
+                factor_names = list(factor_series.keys())
+                for fi, fa in enumerate(factor_names):
+                    for fb in factor_names[fi+1:]:
+                        combined = pd.DataFrame({"a": factor_series[fa], "b": factor_series[fb]}).dropna()
+                        if len(combined) >= 10:
+                            inter_r = round(float(combined["a"].corr(combined["b"])), 2)
+                            if abs(inter_r) >= 0.60:
+                                higher = fa if rank_order.get(fa, 999) < rank_order.get(fb, 999) else fb
+                                lower = fb if higher == fa else fa
+                                if lower not in overlap_notes:
+                                    overlap_notes[lower] = f"Note: {lower} and {higher} tend to move together across municipalities (r = {inter_r:.2f})."
+            # Show a finding box for every factor with |r| ≥ 0.30
+            meaningful = [r for r in ranked if abs(r["r"]) >= 0.30]
+            no_pattern = [r for r in ranked if abs(r["r"]) < 0.30]
             if not meaningful:
                 meaningful = [ranked[0]]  # always show at least the top one
             for i, row in enumerate(meaningful):
-                label = f"{'Strongest' if i == 0 else 'Also'} factor: {row['factor']}"
                 strength_cls, strength_tag, headline, concrete, copy_sentence, note = build_finding(
                     row["r"], row["label"], party, s_year, row["merged"])
-                st.markdown(finding_html(strength_cls, strength_tag, headline, concrete, copy_sentence, note,
-                                         context_label=label),
+                st.markdown(finding_html(strength_cls, strength_tag, headline, concrete, copy_sentence, note),
                             unsafe_allow_html=True)
+            if overlap_notes:
+                for note_text in overlap_notes.values():
+                    st.markdown(
+                        f"<p style='font-size:0.72rem;color:#8888a0;margin-top:0.3rem;margin-bottom:0.3rem;'>"
+                        f"{note_text}</p>",
+                        unsafe_allow_html=True
+                    )
             if no_pattern:
                 no_pattern_names = ", ".join(r["factor"] for r in no_pattern)
                 st.markdown(
                     f"<p style='font-size:0.75rem;color:#aaaabc;margin-top:0.5rem;'>"
-                    f"No pattern found for: {no_pattern_names} (r below 0.20).</p>",
+                    f"No pattern found for: {no_pattern_names} (abs(r) below 0.30).</p>",
                     unsafe_allow_html=True
                 )
             how_to_read()
@@ -637,25 +663,23 @@ Positive r = both go up together. Negative r = they go in opposite directions.
             ranked = sorted(results, key=lambda x: abs(x["r"]), reverse=True)
             # Bar chart first
             summary = pd.DataFrame([{"Party": r["party"].split(". ",1)[-1], "r": r["r"], "Strength": r["strength"]} for r in ranked])
-            st.markdown("<p style='font-size:0.75rem;color:#aaaabc;margin-bottom:0.3rem;'>Positive = more votes where factor is higher. Negative = more votes where factor is lower.</p>", unsafe_allow_html=True)
+            st.markdown("<p style='font-size:0.75rem;color:#aaaabc;margin-bottom:0.3rem;'>Results are ranked by correlation strength (absolute value). Positive = more votes where factor is higher. Negative = more votes where factor is lower.</p>", unsafe_allow_html=True)
             st.bar_chart(summary.set_index("Party")["r"])
-            # Finding box for every party with |r| ≥ 0.20
-            meaningful = [r for r in ranked if abs(r["r"]) >= 0.20]
-            no_pattern = [r for r in ranked if abs(r["r"]) < 0.20]
+            # Finding box for every party with |r| ≥ 0.30
+            meaningful = [r for r in ranked if abs(r["r"]) >= 0.30]
+            no_pattern = [r for r in ranked if abs(r["r"]) < 0.30]
             if not meaningful:
                 meaningful = [ranked[0]]
             for i, row in enumerate(meaningful):
-                label = f"{'Strongest' if i == 0 else 'Also'} link: {row['party'].split('. ',1)[-1]}"
                 strength_cls, strength_tag, headline, concrete, copy_sentence, note = build_finding(
                     row["r"], row["label"], row["party"], s_year, row["merged"])
-                st.markdown(finding_html(strength_cls, strength_tag, headline, concrete, copy_sentence, note,
-                                         context_label=label),
+                st.markdown(finding_html(strength_cls, strength_tag, headline, concrete, copy_sentence, note),
                             unsafe_allow_html=True)
             if no_pattern:
                 no_pattern_names = ", ".join(r["party"].split(". ",1)[-1] for r in no_pattern)
                 st.markdown(
                     f"<p style='font-size:0.75rem;color:#aaaabc;margin-top:0.5rem;'>"
-                    f"No pattern found for: {no_pattern_names} (r below 0.20).</p>",
+                    f"No pattern found for: {no_pattern_names} (abs(r) below 0.30).</p>",
                     unsafe_allow_html=True
                 )
             how_to_read()
@@ -667,19 +691,27 @@ Positive r = both go up together. Negative r = they go in opposite directions.
             top = max(results, key=lambda x: abs(x["r"]))
             strength_cls, strength_tag, headline, concrete, copy_sentence, note = build_finding(
                 top["r"], top["label"], top["party"], s_year, top["merged"])
+            st.markdown(
+                "<p style='font-size:0.75rem;color:#aaaabc;margin-bottom:0.5rem;'>"
+                "Showing highest correlation across selected factors and parties. "
+                "Use the full correlation table to inspect all results.</p>",
+                unsafe_allow_html=True
+            )
             st.markdown(finding_html(strength_cls, strength_tag, headline, concrete, copy_sentence, note,
                                      context_label=f"Strongest signal: {top['party'].split('. ',1)[-1]} × {top['factor']}"),
                         unsafe_allow_html=True)
+            other_count = len(results) - 1
+            if other_count > 0:
+                st.markdown(
+                    f"<p style='font-size:0.75rem;color:#aaaabc;margin-top:0.3rem;'>"
+                    f"{other_count} other signal{'s' if other_count > 1 else ''} exist — see full correlation table.</p>",
+                    unsafe_allow_html=True
+                )
             how_to_read()
             with st.expander("See full correlation table"):
-                matrix_data = {}
-                for r in results:
-                    p_short = r["party"].split(". ",1)[-1]
-                    if p_short not in matrix_data:
-                        matrix_data[p_short] = {}
-                    matrix_data[p_short][r["factor"]] = r["r"]
-                matrix_df = pd.DataFrame(matrix_data).T.round(2)
-                st.dataframe(matrix_df, use_container_width=True)
+                flat = [{"Party": r["party"].split(". ",1)[-1], "Factor": r["factor"], "r": r["r"]} for r in results]
+                flat_df = pd.DataFrame(flat).assign(abs_r=lambda d: d["r"].abs()).sort_values("abs_r", ascending=False).drop(columns="abs_r").reset_index(drop=True)
+                st.dataframe(flat_df, use_container_width=True, hide_index=True)
 
 # ── Compare municipalities ────────────────────────────────────────────────────
 
