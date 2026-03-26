@@ -3,6 +3,8 @@ import pandas as pd
 import altair as alt
 import random
 
+from correlation_utils import correlation_band, corr_strength_label, compute_correlation_result, is_valid_correlation
+
 st.set_page_config(page_title="Danish Politics Data", layout="wide", initial_sidebar_state="expanded")
 
 st.markdown("""
@@ -105,6 +107,12 @@ EXCLUDE = lambda s: (
 ELECTION_TO_POP = {2007:"2008Q1", 2011:"2011Q1", 2015:"2015Q1", 2019:"2019Q1", 2022:"2022Q1"}
 
 def build_finding(corr, metric_label, party, year, merged):
+    if not is_valid_correlation(corr):
+        return "weak", "RESULT UNAVAILABLE", "Result unavailable", \
+            "The correlation value for this selection could not be computed reliably. No pattern claim should be made for this result.", \
+            None, \
+            f"Correlation unavailable · {len(merged)} municipalities · Danmarks Statistik (CC 4.0 BY)"
+
     abs_r  = abs(corr)
     ranked = merged.sort_values("metric")
     low10  = ranked.head(10)["share"].mean()
@@ -121,7 +129,7 @@ def build_finding(corr, metric_label, party, year, merged):
             f"No consistent pattern found.",
             f"The data shows no consistent relationship between {m_short} and votes for {p_short} across {len(merged)} municipalities. "
             f"If you were looking for a story here — the data does not support it.",
-            f"Write: <em>\"Data from {len(merged)} Danish municipalities shows no consistent relationship between {m_short} and support for {p_short} in {year} (abs(r) below 0.30).\"</em>",
+            None,
             note
         )
 
@@ -142,12 +150,26 @@ def build_finding(corr, metric_label, party, year, merged):
         f"the 10 municipalities with the {low_label} {m_short} gave <strong>{more_avg:.1f}%</strong> to {p_short} in {year}, "
         f"compared to {less_avg:.1f}% in the 10 with the {high_label}."
     )
-    copy_sentence = (
-        f"Write: <em>\"In the {year} election, municipalities with {direction} {m_short} "
-        f"gave on average {gap:.1f} percentage points more to {p_short}. "
-        f"Based on data from {len(merged)} Danish municipalities. "
-        f"(Source: Danmarks Statistik, CC 4.0 BY)\"</em>"
-    )
+    if abs_r >= 0.70:
+        copy_sentence = (
+            f"Write: <em>\"In the {year} election, municipalities with {direction} {m_short} "
+            f"gave on average {gap:.1f} percentage points more to {p_short}. "
+            f"Based on data from {len(merged)} Danish municipalities. "
+            f"(Source: Danmarks Statistik, CC 4.0 BY)\"</em>"
+        )
+    elif abs_r >= 0.50:
+        copy_sentence = (
+            f"Write: <em>\"In the {year} election, municipalities with {direction} {m_short} "
+            f"tended to give more support to {p_short}. "
+            f"Based on data from {len(merged)} Danish municipalities. "
+            f"(Source: Danmarks Statistik, CC 4.0 BY)\"</em>"
+        )
+    else:
+        copy_sentence = (
+            f"Use with caution: <em>\"At municipality level, there is a weak association between {direction} {m_short} "
+            f"and vote share for {p_short} in {year}. This does not explain why the pattern exists. "
+            f"Based on data from {len(merged)} Danish municipalities. (Source: Danmarks Statistik, CC 4.0 BY)\"</em>"
+        )
 
     if abs_r >= 0.70:
         return "strong",   "STRONG PATTERN · r = {:.2f}".format(corr),   "Municipalities with {direction} {m} tend to vote more for {p}.".format(direction=direction, m=m_short, p=p_short), concrete, copy_sentence, note
@@ -328,14 +350,6 @@ def get_metric_series(metric_key, year, pop, _income, _social, _crime, _cars, _d
         return df[["municipality","metric"]]
     return pd.DataFrame()
 
-def corr_strength_label(r):
-    a = abs(r)
-    direction = "↑" if r > 0 else "↓"
-    if a >= 0.70: return f"{direction} Strong ({r:.2f})"
-    if a >= 0.50: return f"{direction} Moderate ({r:.2f})"
-    if a >= 0.30: return f"{direction} Weak ({r:.2f})"
-    return f"None ({r:.2f})"
-
 @st.cache_data
 def precompute_all_correlations(_mun, _pop_df, _income_df, _social_df, _crime_df, _cars_df, _divorce_df, _employment_df, _education_df, _age65_df):
     rows = []
@@ -349,9 +363,10 @@ def precompute_all_correlations(_mun, _pop_df, _income_df, _social_df, _crime_df
                 ms = get_metric_series(m_key, year, pop, _income_df, _social_df, _crime_df, _cars_df, _divorce_df, _employment_df, _education_df, _age65_df)
                 if ms.empty or "municipality" not in ms.columns: continue
                 merged = votes.merge(ms, on="municipality", how="inner")
-                if len(merged) < 10: continue
-                r = float(merged["share"].corr(merged["metric"]))
-                rows.append({"year": year, "party": party, "factor": m_name, "label": m_label, "r": round(r, 2)})
+                computed = compute_correlation_result(merged, factor=m_name, party=party, year=year, mode="precompute")
+                if not computed["valid"]:
+                    continue
+                rows.append({"year": year, "party": party, "factor": m_name, "label": m_label, "r": computed["r"]})
     return pd.DataFrame(rows)
 
 all_corr_df = precompute_all_correlations(mun, pop_df, income_df, social_df, crime_df, cars_df, divorce_df, employment_df, education_df, age65_df)
@@ -471,9 +486,18 @@ if page == "Explore":
                     continue
                 merged  = votes.merge(ms, on="municipality", how="inner")
                 if merged.empty: continue
-                r = merged["share"].corr(merged["metric"])
-                results.append({"party": party, "factor": mk, "label": m_label, "r": round(r, 2),
-                                 "merged": merged, "strength": corr_strength_label(r)})
+                computed = compute_correlation_result(merged, factor=mk, party=party, year=s_year, mode="explore")
+                results.append({
+                    "party": party,
+                    "factor": mk,
+                    "label": m_label,
+                    "r": computed["r"],
+                    "merged": computed["merged"],
+                    "valid": computed["valid"],
+                    "n": computed["n"],
+                    "reason": computed["reason"],
+                    "strength": corr_strength_label(computed["r"])
+                })
 
         if not results:
             st.markdown(
@@ -495,14 +519,20 @@ if page == "Explore":
 
         def finding_html(strength_cls, strength_tag, headline, concrete, copy_sentence, note, context_label=None):
             ctx = f'<div class="copy-label" style="margin-bottom:0.3rem;">{context_label}</div>' if context_label else ""
+            copy_block = ""
+            if copy_sentence:
+                copy_label = "Use with caution:" if strength_tag.startswith("WEAK PATTERN") else "Write this as:"
+                copy_block = (
+                    f'<div class="copy-label">{copy_label}</div>'
+                    f'<div class="copy-box">{copy_sentence}</div>'
+                )
             return (
                 f'<div class="finding {strength_cls}">'
                 f'<div class="strength-tag">{strength_tag}</div>'
                 f'{ctx}'
                 f'<div class="headline">{headline}</div>'
                 f'<div class="body">{concrete}</div>'
-                f'<div class="copy-label">Write this as:</div>'
-                f'<div class="copy-box">{copy_sentence}</div>'
+                f'{copy_block}'
                 f'<div class="footnote">{note}</div>'
                 f'</div>'
             )
@@ -512,7 +542,7 @@ if page == "Explore":
                 st.markdown("""
 **STRONG PATTERN (abs(r) ≥ 0.70)** — Write: *"Data from 98 municipalities shows a clear link."*
 **MODERATE PATTERN (abs(r) 0.50–0.70)** — Write: *"There is a consistent tendency."*
-**WEAK PATTERN (abs(r) 0.30–0.50)** — Mention it, but add: *"the link is not strong."*
+**WEAK PATTERN (abs(r) 0.30–0.50)** — Use with caution. It is a weak municipality-level association, not an explanation.
 **NO PATTERN (abs(r) below 0.30)** — Do not write a pattern claim. The data does not support it.
 
 Positive r = both go up together. Negative r = they go in opposite directions.
@@ -523,6 +553,15 @@ Positive r = both go up together. Negative r = they go in opposite directions.
         # ── Case A: 1 party, 1 metric → full finding + scatter ───────────────
         if len(s_parties) == 1 and len(s_metric_keys) == 1:
             row = results[0]
+            if not row["valid"]:
+                st.markdown(
+                    '<div class="finding weak">'
+                    '<div class="strength-tag">RESULT UNAVAILABLE</div>'
+                    '<div class="headline">Result unavailable</div>'
+                    '<div class="body">The correlation value for this selection could not be computed reliably. No pattern claim should be made for this result.</div>'
+                    '</div>', unsafe_allow_html=True
+                )
+                st.stop()
             strength_cls, strength_tag, headline, concrete, copy_sentence, note = build_finding(
                 row["r"], row["label"], row["party"], s_year, row["merged"])
             st.markdown(finding_html(strength_cls, strength_tag, headline, concrete, copy_sentence, note),
@@ -604,7 +643,17 @@ Positive r = both go up together. Negative r = they go in opposite directions.
         # ── Case B: multiple metrics, 1 party → "what predicts this party?" ──
         elif len(s_parties) == 1 and len(s_metric_keys) > 1:
             party = s_parties[0]
-            ranked = sorted(results, key=lambda x: abs(x["r"]), reverse=True)
+            valid_results = [r for r in results if r["valid"]]
+            if not valid_results:
+                st.markdown(
+                    '<div class="finding weak">'
+                    '<div class="strength-tag">NO VALID RESULT</div>'
+                    '<div class="headline">No valid correlation result available</div>'
+                    '<div class="body">None of the selected factor-party combinations produced a valid correlation value. No strongest signal is shown.</div>'
+                    '</div>', unsafe_allow_html=True
+                )
+                st.stop()
+            ranked = sorted(valid_results, key=lambda x: abs(float(x["r"])), reverse=True)
             # Bar chart first — most informative view
             summary = pd.DataFrame([{"Factor": r["factor"], "r": r["r"], "Strength": r["strength"]} for r in ranked])
             st.markdown("<p style='font-size:0.75rem;color:#aaaabc;margin-bottom:0.3rem;'>Results are ranked by correlation strength (absolute value). Positive = more votes where factor is higher. Negative = more votes where factor is lower.</p>", unsafe_allow_html=True)
@@ -631,8 +680,8 @@ Positive r = both go up together. Negative r = they go in opposite directions.
                                 if lower not in overlap_notes:
                                     overlap_notes[lower] = f"Note: {lower} and {higher} tend to move together across municipalities (r = {inter_r:.2f})."
             # Show a finding box for every factor with |r| ≥ 0.30
-            meaningful = [r for r in ranked if abs(r["r"]) >= 0.30]
-            no_pattern = [r for r in ranked if abs(r["r"]) < 0.30]
+            meaningful = [r for r in ranked if abs(float(r["r"])) >= 0.30]
+            no_pattern = [r for r in ranked if abs(float(r["r"])) < 0.30]
             if not meaningful:
                 meaningful = [ranked[0]]  # always show at least the top one
             for i, row in enumerate(meaningful):
@@ -660,14 +709,24 @@ Positive r = both go up together. Negative r = they go in opposite directions.
 
         # ── Case C: multiple parties, 1 metric → "which parties link to X?" ──
         elif len(s_parties) > 1 and len(s_metric_keys) == 1:
-            ranked = sorted(results, key=lambda x: abs(x["r"]), reverse=True)
+            valid_results = [r for r in results if r["valid"]]
+            if not valid_results:
+                st.markdown(
+                    '<div class="finding weak">'
+                    '<div class="strength-tag">NO VALID RESULT</div>'
+                    '<div class="headline">No valid correlation result available</div>'
+                    '<div class="body">None of the selected factor-party combinations produced a valid correlation value. No strongest signal is shown.</div>'
+                    '</div>', unsafe_allow_html=True
+                )
+                st.stop()
+            ranked = sorted(valid_results, key=lambda x: abs(float(x["r"])), reverse=True)
             # Bar chart first
             summary = pd.DataFrame([{"Party": r["party"].split(". ",1)[-1], "r": r["r"], "Strength": r["strength"]} for r in ranked])
             st.markdown("<p style='font-size:0.75rem;color:#aaaabc;margin-bottom:0.3rem;'>Results are ranked by correlation strength (absolute value). Positive = more votes where factor is higher. Negative = more votes where factor is lower.</p>", unsafe_allow_html=True)
             st.bar_chart(summary.set_index("Party")["r"])
             # Finding box for every party with |r| ≥ 0.30
-            meaningful = [r for r in ranked if abs(r["r"]) >= 0.30]
-            no_pattern = [r for r in ranked if abs(r["r"]) < 0.30]
+            meaningful = [r for r in ranked if abs(float(r["r"])) >= 0.30]
+            no_pattern = [r for r in ranked if abs(float(r["r"])) < 0.30]
             if not meaningful:
                 meaningful = [ranked[0]]
             for i, row in enumerate(meaningful):
@@ -688,7 +747,17 @@ Positive r = both go up together. Negative r = they go in opposite directions.
 
         # ── Case D: multiple parties + multiple metrics → matrix ──────────────
         else:
-            top = max(results, key=lambda x: abs(x["r"]))
+            valid_results = [r for r in results if r["valid"]]
+            if not valid_results:
+                st.markdown(
+                    '<div class="finding weak">'
+                    '<div class="strength-tag">NO VALID RESULT</div>'
+                    '<div class="headline">No valid correlation result available</div>'
+                    '<div class="body">None of the selected factor-party combinations produced a valid correlation value. No strongest signal is shown.</div>'
+                    '</div>', unsafe_allow_html=True
+                )
+                st.stop()
+            top = max(valid_results, key=lambda x: abs(float(x["r"])))
             strength_cls, strength_tag, headline, concrete, copy_sentence, note = build_finding(
                 top["r"], top["label"], top["party"], s_year, top["merged"])
             st.markdown(
@@ -700,7 +769,7 @@ Positive r = both go up together. Negative r = they go in opposite directions.
             st.markdown(finding_html(strength_cls, strength_tag, headline, concrete, copy_sentence, note,
                                      context_label=f"Strongest signal: {top['party'].split('. ',1)[-1]} × {top['factor']}"),
                         unsafe_allow_html=True)
-            other_count = len(results) - 1
+            other_count = len(valid_results) - 1
             if other_count > 0:
                 st.markdown(
                     f"<p style='font-size:0.75rem;color:#aaaabc;margin-top:0.3rem;'>"
@@ -709,7 +778,7 @@ Positive r = both go up together. Negative r = they go in opposite directions.
                 )
             how_to_read()
             with st.expander("See full correlation table"):
-                flat = [{"Party": r["party"].split(". ",1)[-1], "Factor": r["factor"], "r": r["r"]} for r in results]
+                flat = [{"Party": r["party"].split(". ",1)[-1], "Factor": r["factor"], "r": r["r"]} for r in valid_results]
                 flat_df = pd.DataFrame(flat).assign(abs_r=lambda d: d["r"].abs()).sort_values("abs_r", ascending=False).drop(columns="abs_r").reset_index(drop=True)
                 st.dataframe(flat_df, use_container_width=True, hide_index=True)
 
