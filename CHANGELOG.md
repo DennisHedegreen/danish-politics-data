@@ -2,6 +2,58 @@
 
 ---
 
+## 2026-03-26 — Mobile structure pass for dense views
+
+- Explore single-result extremes now use tabs instead of side-by-side tables.
+- Compare municipalities now uses municipality tabs for vote history.
+- The structural profile in Compare municipalities now renders as compact metric cards, with the full table preserved behind an expander.
+- By municipality now shows the ranked table first and moves the full 98-bar chart behind an expander.
+
+Reason:
+Some views were still using dense desktop structure in places where the data itself was fine but the reading flow was not.
+
+---
+
+## 2026-03-26 — Historical table cleanup and clearer profile framing
+
+- The national trends table now shows `—` where party data is absent instead of leaking raw missing-value emptiness.
+- The municipality profile text in Compare municipalities now says plainly that it uses the most recent available year for each metric.
+- The About page no longer locks itself to a fixed dataset count and now states the main method limits more directly.
+
+Reason:
+Small trust leaks matter. Public UI should not expose implementation artifacts or vague year logic.
+
+---
+
+## 2026-03-26 — Mobile presentation and party-label display pass
+
+- Added a display toggle for party labels: `Danish`, `English`, `Both`.
+- Applied that display layer across selectors, result summaries, ranking tables, and compact chart contexts.
+- Replaced some default charts with explicit Altair charts so compact labels and fuller tooltips can coexist.
+- Tightened a few clumsy factor labels and reduced some mobile spacing pressure.
+
+Reason:
+The app is in English, but the political entities are Danish. The label layer needed to become a deliberate display choice instead of a fixed compromise.
+
+---
+
+## 2026-03-26 — Municipality consistency and factor-specific reliability
+
+- The public municipality frame is now fixed to 98.
+- `Christiansø` is excluded consistently from the public municipality vote layer and the factor layers that were still drifting.
+- The Explore scatter path now uses stable internal numeric fields instead of relying on longer visible labels as chart columns.
+- `Divorces` stays unavailable where the current data collapses to no usable municipality variation, but the app now says that more clearly.
+
+Rule preserved:
+
+> No valid `r` = no pattern claim.
+
+Reason:
+The point was not to make more output appear.
+The point was to stop weak joins, weak counts, and weak plotting from pretending to be findings.
+
+---
+
 ## 2026-03-26 — Correlation guardrails for invalid results
 
 ### What changed and why

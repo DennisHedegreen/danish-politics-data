@@ -95,6 +95,44 @@ hr { border-color: #e0e0e8 !important; margin: 1.5rem 0 !important; }
 /* Source items */
 .source-item { font-size: 0.72rem; color: #6a6a7a; padding: 0.4rem 0; border-bottom: 1px solid #f0f0f5; line-height: 1.5; }
 .source-item strong { color: #0d0d14; font-weight: 500; }
+.data-card-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 0.75rem;
+    margin: 0.8rem 0 0.4rem;
+}
+.data-card {
+    border: 1px solid #e0e0e8;
+    background: #fff;
+    padding: 0.9rem 1rem;
+}
+.data-card .metric {
+    font-size: 0.62rem;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: #8888a0;
+    margin-bottom: 0.45rem;
+}
+.data-card .value-line {
+    font-size: 0.84rem;
+    line-height: 1.6;
+    color: #1d1d28;
+}
+.data-card .year {
+    margin-top: 0.45rem;
+    font-size: 0.67rem;
+    color: #8888a0;
+}
+
+@media (max-width: 900px) {
+    .main .block-container { padding-top: 1.2rem; padding-left: 1rem; padding-right: 1rem; max-width: 100%; }
+    section[data-testid="stSidebar"] { min-width: 100% !important; max-width: 100% !important; }
+    h1 { font-size: 1.65rem !important; }
+    .finding { padding: 1rem 1rem; }
+    .finding .headline { font-size: 1.18rem; }
+    .data-card-grid { grid-template-columns: 1fr; }
+}
 </style>
 """, unsafe_allow_html=True)
 
@@ -106,7 +144,153 @@ EXCLUDE = lambda s: (
 )
 ELECTION_TO_POP = {2007:"2008Q1", 2011:"2011Q1", 2015:"2015Q1", 2019:"2019Q1", 2022:"2022Q1"}
 
-def build_finding(corr, metric_label, party, year, merged):
+
+def exclude_public_special_cases(df, column="municipality"):
+    return df[~df[column].isin(["All Denmark", "Christiansø"])].copy()
+
+
+def invalid_result_detail(reason):
+    if reason == "zero_variance_metric":
+        return "The selected factor has no usable municipality variation for this year after preprocessing."
+    if reason == "zero_variance_share":
+        return "The selected party has no usable municipality variation for this year."
+    if reason == "insufficient_rows":
+        return "There are too few overlapping municipality rows to compute a reliable correlation."
+    return "The correlation value for this selection could not be computed reliably."
+
+
+PARTY_METADATA = {
+    "A": {"danish": "Socialdemokratiet", "english": "The Social Democrats", "short_danish": "Soc.dem.", "short_english": "Soc. Dems"},
+    "B": {"danish": "Radikale Venstre", "english": "The Danish Social-Liberal Party", "short_danish": "Radikale", "short_english": "Soc. Liberals"},
+    "C": {"danish": "Det Konservative Folkeparti", "english": "The Conservative People's Party", "short_danish": "Konservative", "short_english": "Conservatives"},
+    "D": {"danish": "Nye Borgerlige", "english": "The New Right", "short_danish": "Nye Borgerlige", "short_english": "New Right"},
+    "E": {"danish": "Klaus Riskær Pedersen", "english": "Klaus Riskær Pedersen", "short_danish": "Riskær", "short_english": "Riskær"},
+    "F": {"danish": "Socialistisk Folkeparti", "english": "The Socialist People's Party", "short_danish": "SF", "short_english": "Socialist PP"},
+    "H": {"danish": "Borgernes Parti", "english": "The Citizens' Party", "short_danish": "Borgernes Parti", "short_english": "Citizens' Party"},
+    "I": {"danish": "Liberal Alliance", "english": "Liberal Alliance", "short_danish": "LA", "short_english": "Liberal Alliance"},
+    "K": {"danish": "Kristendemokraterne", "english": "Christian Democrats", "short_danish": "KD", "short_english": "Christian Dems"},
+    "M": {"danish": "Moderaterne", "english": "The Moderates", "short_danish": "Moderaterne", "short_english": "Moderates"},
+    "O": {"danish": "Dansk Folkeparti", "english": "The Danish People's Party", "short_danish": "DF", "short_english": "Danish PP"},
+    "P": {"danish": "Stram Kurs", "english": "Hard Line", "short_danish": "Stram Kurs", "short_english": "Hard Line"},
+    "Q": {"danish": "Frie Grønne", "english": "Independent Greens", "short_danish": "Frie Grønne", "short_english": "Ind. Greens"},
+    "V": {"danish": "Venstre", "english": "Venstre (Liberal Party of Denmark)", "short_danish": "Venstre", "short_english": "Venstre"},
+    "Å": {"danish": "Alternativet", "english": "The Alternative", "short_danish": "Alternativet", "short_english": "Alternative"},
+    "Æ": {"danish": "Danmarksdemokraterne", "english": "The Danish Democrats", "short_danish": "Danmarksdem.", "short_english": "Danish Dems"},
+    "Ø": {"danish": "Enhedslisten", "english": "The Red-Green Alliance", "short_danish": "Enhedslisten", "short_english": "Red-Green"},
+    "Independent candidates": {"danish": "Løsgængere", "english": "Independent candidates", "short_danish": "Løsgængere", "short_english": "Independents"},
+}
+
+PARTY_NAME_MODES = ["Danish", "English", "Both"]
+
+METRIC_SHORT_LABELS = {
+    "Education": "Higher edu. %",
+    "Income": "Income",
+    "Employment": "Employed / 1k",
+    "Welfare": "Welfare / 1k",
+    "Crime": "Crime / 1k",
+    "Cars": "Cars / 1k",
+    "Divorces": "Divorces / 1k",
+    "Age 65+": "Age 65+ %",
+}
+
+METRIC_PHRASES = {
+    "Education": "higher education share",
+    "Income": "disposable income",
+    "Employment": "full-time employment",
+    "Welfare": "social assistance use",
+    "Crime": "reported crime",
+    "Cars": "car ownership",
+    "Divorces": "divorce rate",
+    "Age 65+": "share aged 65+",
+}
+
+
+def party_parts(raw_party):
+    if raw_party in PARTY_METADATA and raw_party == "Independent candidates":
+        meta = PARTY_METADATA[raw_party]
+        return None, meta
+    if ". " in raw_party:
+        code, english_source = raw_party.split(". ", 1)
+        meta = PARTY_METADATA.get(code, {}).copy()
+        if not meta:
+            meta = {
+                "danish": english_source,
+                "english": english_source,
+                "short_danish": english_source,
+                "short_english": english_source,
+            }
+        return code, meta
+    meta = PARTY_METADATA.get(raw_party, {
+        "danish": raw_party,
+        "english": raw_party,
+        "short_danish": raw_party,
+        "short_english": raw_party,
+    })
+    return None, meta
+
+
+def format_party_name(raw_party, mode="English", compact=False, include_code=False, prose=False):
+    code, meta = party_parts(raw_party)
+    danish = meta["short_danish"] if compact else meta["danish"]
+    english = meta["short_english"] if compact else meta["english"]
+
+    if mode == "Danish":
+        label = danish
+    elif mode == "Both":
+        label = f"{danish} ({english})" if prose else f"{danish} / {english}"
+    else:
+        label = english
+
+    if include_code and code:
+        return f"{code}. {label}"
+    return label
+
+
+def format_party_code(code, mode="English", compact=False):
+    for raw in ALL_PARTY_NAMES if "ALL_PARTY_NAMES" in globals() else []:
+        party_code, _ = party_parts(raw)
+        if party_code == code:
+            return format_party_name(raw, mode=mode, compact=compact, include_code=True)
+    return code
+
+
+def render_bar_chart(df, label_col, value_col, tooltip_label=None, full_label_col=None):
+    chart_df = df.copy()
+    order = chart_df[label_col].tolist()
+    tooltip_fields = [alt.Tooltip(label_col, title=tooltip_label or label_col)]
+    if full_label_col and full_label_col in chart_df.columns:
+        tooltip_fields = [alt.Tooltip(full_label_col, title=tooltip_label or full_label_col)]
+    tooltip_fields.append(alt.Tooltip(value_col, format=".2f", title=value_col))
+    chart = alt.Chart(chart_df).mark_bar().encode(
+        y=alt.Y(f"{label_col}:N", sort=order, title=None),
+        x=alt.X(f"{value_col}:Q", title=value_col),
+        color=alt.condition(alt.datum[value_col] >= 0, alt.value("#22d966"), alt.value("#3d8ef0")),
+        tooltip=tooltip_fields,
+    ).properties(height=max(220, len(chart_df) * 34))
+    st.altair_chart(chart, use_container_width=True)
+
+
+def render_compact_dataframe(df, rename_map=None):
+    table = df.copy()
+    if rename_map:
+        table = table.rename(columns=rename_map)
+    st.dataframe(table, use_container_width=True, hide_index=True)
+
+
+def render_profile_cards(rows, label_a, label_b):
+    cards = []
+    for row in rows:
+        cards.append(
+            "<div class='data-card'>"
+            f"<div class='metric'>{row['Metric']}</div>"
+            f"<div class='value-line'><strong>{label_a}:</strong> {row[label_a]}</div>"
+            f"<div class='value-line'><strong>{label_b}:</strong> {row[label_b]}</div>"
+            f"<div class='year'>Year: {row['Year']}</div>"
+            "</div>"
+        )
+    st.markdown(f"<div class='data-card-grid'>{''.join(cards)}</div>", unsafe_allow_html=True)
+
+def build_finding(corr, factor_name, metric_label, party, year, merged, party_name_mode):
     if not is_valid_correlation(corr):
         return "weak", "RESULT UNAVAILABLE", "Result unavailable", \
             "The correlation value for this selection could not be computed reliably. No pattern claim should be made for this result.", \
@@ -117,8 +301,8 @@ def build_finding(corr, metric_label, party, year, merged):
     ranked = merged.sort_values("metric")
     low10  = ranked.head(10)["share"].mean()
     high10 = ranked.tail(10)["share"].mean()
-    p_short = party.split(". ", 1)[-1] if ". " in party else party
-    m_short = metric_label.lower()
+    p_short = format_party_name(party, mode=party_name_mode, prose=True)
+    m_short = METRIC_PHRASES.get(factor_name, metric_label.lower())
 
     note = f"Pearson r = {corr:.2f} · {len(merged)} municipalities · Danmarks Statistik (CC 4.0 BY)"
 
@@ -185,7 +369,8 @@ def load_municipal():
     df = pd.read_csv("denmark/folketing/fvpandel_party_share.csv", sep=";", encoding="utf-8-sig")
     df.columns = ["party","municipality","year","share"]
     df["year"] = df["year"].astype(int)
-    return df[(df["party"] != "Total") & (df["municipality"] != "All Denmark")]
+    df = df[(df["party"] != "Total") & (df["municipality"] != "All Denmark")].copy()
+    return exclude_public_special_cases(df)
 
 @st.cache_data
 def load_national():
@@ -247,13 +432,13 @@ def load_divorces():
 def load_education():
     df = pd.read_csv("denmark/socioeconomic/hfudd11_higher_edu_pct.csv")
     df["year"] = df["year"].astype(int)
-    return df  # columns: municipality, year, value (% with higher education)
+    return exclude_public_special_cases(df)  # columns: municipality, year, value (% with higher education)
 
 @st.cache_data
 def load_age65():
     df = pd.read_csv("denmark/socioeconomic/folk1a_pct_65plus.csv")
     df["year"] = df["year"].astype(int)
-    return df  # columns: municipality, year, value (% aged 65+)
+    return exclude_public_special_cases(df)  # columns: municipality, year, value (% aged 65+)
 
 @st.cache_data
 def load_employment():
@@ -289,6 +474,9 @@ with st.sidebar:
         "</p>", unsafe_allow_html=True
     )
     st.divider()
+    party_name_mode = st.selectbox("Party names", PARTY_NAME_MODES, index=1)
+    st.caption("Display labels only. Data and party IDs stay the same.")
+    st.divider()
     page = st.radio("nav", ["Explore", "Compare municipalities", "By Municipality", "National trends", "About & sources"],
                     label_visibility="collapsed")
     st.divider()
@@ -302,14 +490,14 @@ with st.sidebar:
 # ── Explore (guided discovery) ────────────────────────────────────────────────
 
 METRIC_OPTIONS = [
-    ("Education",   "Share with higher education (%)",           "education",   "Do more educated municipalities vote differently?"),
+    ("Education",   "Higher education share (%)",                "education",   "Do more educated municipalities vote differently?"),
     ("Income",      "Avg. disposable income (DKK per person)",   "income",      "Do wealthier municipalities vote differently?"),
-    ("Employment",  "Full-time employed per 1,000 residents",    "employment",  "Do areas with higher employment vote differently?"),
-    ("Welfare",     "Social assistance recipients per 1,000",    "social",      "Do areas with more people on benefits vote differently?"),
+    ("Employment",  "Full-time employees per 1,000 residents",   "employment",  "Do areas with higher employment vote differently?"),
+    ("Welfare",     "Social assistance recipients per 1,000 residents", "social", "Do areas with more people on benefits vote differently?"),
     ("Crime",       "Reported crimes per 1,000 residents",       "crime",       "Is there a link between crime rates and voting patterns?"),
     ("Cars",        "Passenger cars per 1,000 residents",        "cars",        "Do car-heavy (rural) areas vote differently from urban ones?"),
     ("Divorces",    "Divorces per 1,000 residents",              "divorces",    "Does social stability correlate with voting behaviour?"),
-    ("Age 65+",     "Share aged 65 or above (%)",                "age65",       "Do older municipalities vote differently?"),
+    ("Age 65+",     "Share aged 65+ (%)",                        "age65",       "Do older municipalities vote differently?"),
 ]
 ALL_METRIC_KEYS    = [m[0] for m in METRIC_OPTIONS]
 ALL_PARTY_NAMES    = sorted(mun["party"].unique())
@@ -416,6 +604,7 @@ if page == "Explore":
         cx_parties = ALL_PARTY_NAMES
     else:
         cx_parties = st.multiselect("parties", ALL_PARTY_NAMES, key="cx_parties",
+                                    format_func=lambda p: format_party_name(p, mode=party_name_mode, include_code=True),
                                     label_visibility="collapsed")
 
     # ── Step 4: highlight a municipality (optional) ───────────────────────────
@@ -554,42 +743,46 @@ Positive r = both go up together. Negative r = they go in opposite directions.
         if len(s_parties) == 1 and len(s_metric_keys) == 1:
             row = results[0]
             if not row["valid"]:
+                invalid_body = (
+                    f"{invalid_result_detail(row['reason'])} "
+                    "No pattern claim should be made for this result."
+                )
                 st.markdown(
                     '<div class="finding weak">'
                     '<div class="strength-tag">RESULT UNAVAILABLE</div>'
                     '<div class="headline">Result unavailable</div>'
-                    '<div class="body">The correlation value for this selection could not be computed reliably. No pattern claim should be made for this result.</div>'
+                    f'<div class="body">{invalid_body}</div>'
                     '</div>', unsafe_allow_html=True
                 )
                 st.stop()
             strength_cls, strength_tag, headline, concrete, copy_sentence, note = build_finding(
-                row["r"], row["label"], row["party"], s_year, row["merged"])
+                row["r"], row["factor"], row["label"], row["party"], s_year, row["merged"], party_name_mode)
             st.markdown(finding_html(strength_cls, strength_tag, headline, concrete, copy_sentence, note),
                         unsafe_allow_html=True)
             how_to_read()
 
             # Always show the extremes — the concrete municipalities at both ends
+            metric_short = METRIC_SHORT_LABELS.get(row["factor"], row["label"])
             ranked_data = row["merged"].sort_values("metric").rename(columns={
                 "municipality": "Municipality",
-                "share": "Vote share (%)",
-                "metric": row["label"]
+                "share": "Vote %",
+                "metric": metric_short
             })
-            col_lo, col_hi = st.columns(2)
-            with col_lo:
+            tab_lo, tab_hi = st.tabs([f"Lowest {metric_short}", f"Highest {metric_short}"])
+            with tab_lo:
                 st.markdown(
                     f"<p style='font-size:0.6rem;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;"
-                    f"color:#aaaabc;margin-bottom:0.3rem;'>Lowest {row['label'].split()[0]} →</p>",
+                    f"color:#aaaabc;margin-bottom:0.3rem;'>Lowest {metric_short} →</p>",
                     unsafe_allow_html=True
                 )
-                st.dataframe(ranked_data.head(10), use_container_width=True, hide_index=True)
-            with col_hi:
+                render_compact_dataframe(ranked_data.head(10))
+            with tab_hi:
                 st.markdown(
                     f"<p style='font-size:0.6rem;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;"
-                    f"color:#aaaabc;margin-bottom:0.3rem;'>Highest {row['label'].split()[0]} →</p>",
+                    f"color:#aaaabc;margin-bottom:0.3rem;'>Highest {metric_short} →</p>",
                     unsafe_allow_html=True
                 )
-                st.dataframe(ranked_data.tail(10).sort_values(row["label"], ascending=False),
-                             use_container_width=True, hide_index=True)
+                render_compact_dataframe(ranked_data.tail(10).sort_values(metric_short, ascending=False))
 
             # ── Highlight callout ──────────────────────────────────────────────
             if highlight_muni:
@@ -605,7 +798,7 @@ Positive r = both go up together. Negative r = they go in opposite directions.
                         f'<span style="font-size:0.58rem;font-weight:700;letter-spacing:0.14em;text-transform:uppercase;color:#22d966;">HIGHLIGHTED: {highlight_muni}</span><br>'
                         f'<span style="font-size:0.88rem;color:#0d0d14;">{row["label"]}: <strong>{h_metric:.1f}</strong> &nbsp;·&nbsp; '
                         f'Vote share: <strong>{h_share:.1f}%</strong> &nbsp;·&nbsp; '
-                        f'Rank {h_rank} of {len(sorted_all)} municipalities by {row["label"].split()[0].lower()}</span>'
+                        f'Rank {h_rank} of {len(sorted_all)} municipalities by {metric_short.lower()}</span>'
                         f'</div>',
                         unsafe_allow_html=True
                     )
@@ -613,18 +806,25 @@ Positive r = both go up together. Negative r = they go in opposite directions.
                     st.caption(f"No data for {highlight_muni} in {s_year}.")
 
             st.markdown("<p style='font-size:0.75rem;color:#aaaabc;margin-top:1rem;'>Each dot = one municipality. Named dots = extremes.</p>", unsafe_allow_html=True)
-            scatter_df = row["merged"].rename(columns={"share": "Vote share (%)", "metric": row["label"]}).copy()
+            scatter_df = row["merged"].copy()
+            scatter_df["vote_share"] = pd.to_numeric(scatter_df["share"], errors="coerce")
+            scatter_df["metric_value"] = pd.to_numeric(scatter_df["metric"], errors="coerce")
+            scatter_df = scatter_df.dropna(subset=["vote_share", "metric_value"]).copy()
             # Label top 5 + bottom 5 by metric, plus the highlighted municipality
-            sorted_sc = scatter_df.sort_values(row["label"])
+            sorted_sc = scatter_df.sort_values("metric_value")
             label_munis = set(sorted_sc.head(5)["municipality"]) | set(sorted_sc.tail(5)["municipality"])
             if highlight_muni:
                 label_munis.add(highlight_muni)
             scatter_df["label"] = scatter_df["municipality"].where(scatter_df["municipality"].isin(label_munis), "")
             scatter_df["highlighted"] = scatter_df["municipality"] == (highlight_muni or "")
             base = alt.Chart(scatter_df).encode(
-                x=alt.X(row["label"], title=row["label"]),
-                y=alt.Y("Vote share (%)", title="Vote share (%)"),
-                tooltip=["municipality", row["label"], "Vote share (%)"]
+                x=alt.X("metric_value:Q", title=row["label"]),
+                y=alt.Y("vote_share:Q", title="Vote share (%)"),
+                tooltip=[
+                    alt.Tooltip("municipality:N", title="Municipality"),
+                    alt.Tooltip("metric_value:Q", title=row["label"]),
+                    alt.Tooltip("vote_share:Q", title="Vote share (%)"),
+                ]
             )
             points_normal = base.transform_filter(
                 alt.datum.highlighted == False
@@ -637,8 +837,7 @@ Positive r = both go up together. Negative r = they go in opposite directions.
             )
             st.altair_chart((points_normal + points_highlight + labels).properties(height=350), use_container_width=True)
             with st.expander(f"See all {len(ranked_data)} municipalities"):
-                st.dataframe(ranked_data.sort_values("Vote share (%)", ascending=False),
-                             use_container_width=True, hide_index=True)
+                render_compact_dataframe(ranked_data.sort_values("Vote %", ascending=False))
 
         # ── Case B: multiple metrics, 1 party → "what predicts this party?" ──
         elif len(s_parties) == 1 and len(s_metric_keys) > 1:
@@ -655,9 +854,14 @@ Positive r = both go up together. Negative r = they go in opposite directions.
                 st.stop()
             ranked = sorted(valid_results, key=lambda x: abs(float(x["r"])), reverse=True)
             # Bar chart first — most informative view
-            summary = pd.DataFrame([{"Factor": r["factor"], "r": r["r"], "Strength": r["strength"]} for r in ranked])
+            summary = pd.DataFrame([{
+                "Factor": r["factor"],
+                "Label": METRIC_SHORT_LABELS.get(r["factor"], r["factor"]),
+                "r": r["r"],
+                "Strength": r["strength"],
+            } for r in ranked])
             st.markdown("<p style='font-size:0.75rem;color:#aaaabc;margin-bottom:0.3rem;'>Results are ranked by correlation strength (absolute value). Positive = more votes where factor is higher. Negative = more votes where factor is lower.</p>", unsafe_allow_html=True)
-            st.bar_chart(summary.set_index("Factor")["r"])
+            render_bar_chart(summary, "Label", "r", tooltip_label="Factor", full_label_col="Factor")
             # Compute inter-factor overlaps
             overlap_notes = {}
             if len(s_metric_keys) >= 2:
@@ -686,7 +890,7 @@ Positive r = both go up together. Negative r = they go in opposite directions.
                 meaningful = [ranked[0]]  # always show at least the top one
             for i, row in enumerate(meaningful):
                 strength_cls, strength_tag, headline, concrete, copy_sentence, note = build_finding(
-                    row["r"], row["label"], party, s_year, row["merged"])
+                    row["r"], row["factor"], row["label"], party, s_year, row["merged"], party_name_mode)
                 st.markdown(finding_html(strength_cls, strength_tag, headline, concrete, copy_sentence, note),
                             unsafe_allow_html=True)
             if overlap_notes:
@@ -705,7 +909,7 @@ Positive r = both go up together. Negative r = they go in opposite directions.
                 )
             how_to_read()
             with st.expander("See full ranking table"):
-                st.dataframe(summary, use_container_width=True, hide_index=True)
+                render_compact_dataframe(summary[["Factor", "r", "Strength"]])
 
         # ── Case C: multiple parties, 1 metric → "which parties link to X?" ──
         elif len(s_parties) > 1 and len(s_metric_keys) == 1:
@@ -721,9 +925,14 @@ Positive r = both go up together. Negative r = they go in opposite directions.
                 st.stop()
             ranked = sorted(valid_results, key=lambda x: abs(float(x["r"])), reverse=True)
             # Bar chart first
-            summary = pd.DataFrame([{"Party": r["party"].split(". ",1)[-1], "r": r["r"], "Strength": r["strength"]} for r in ranked])
+            summary = pd.DataFrame([{
+                "Party": format_party_name(r["party"], mode=party_name_mode, compact=True, include_code=True),
+                "Party_full": format_party_name(r["party"], mode=party_name_mode, include_code=True),
+                "r": r["r"],
+                "Strength": r["strength"],
+            } for r in ranked])
             st.markdown("<p style='font-size:0.75rem;color:#aaaabc;margin-bottom:0.3rem;'>Results are ranked by correlation strength (absolute value). Positive = more votes where factor is higher. Negative = more votes where factor is lower.</p>", unsafe_allow_html=True)
-            st.bar_chart(summary.set_index("Party")["r"])
+            render_bar_chart(summary, "Party", "r", tooltip_label="Party", full_label_col="Party_full")
             # Finding box for every party with |r| ≥ 0.30
             meaningful = [r for r in ranked if abs(float(r["r"])) >= 0.30]
             no_pattern = [r for r in ranked if abs(float(r["r"])) < 0.30]
@@ -731,11 +940,11 @@ Positive r = both go up together. Negative r = they go in opposite directions.
                 meaningful = [ranked[0]]
             for i, row in enumerate(meaningful):
                 strength_cls, strength_tag, headline, concrete, copy_sentence, note = build_finding(
-                    row["r"], row["label"], row["party"], s_year, row["merged"])
+                    row["r"], row["factor"], row["label"], row["party"], s_year, row["merged"], party_name_mode)
                 st.markdown(finding_html(strength_cls, strength_tag, headline, concrete, copy_sentence, note),
                             unsafe_allow_html=True)
             if no_pattern:
-                no_pattern_names = ", ".join(r["party"].split(". ",1)[-1] for r in no_pattern)
+                no_pattern_names = ", ".join(format_party_name(r["party"], mode=party_name_mode, compact=True) for r in no_pattern)
                 st.markdown(
                     f"<p style='font-size:0.75rem;color:#aaaabc;margin-top:0.5rem;'>"
                     f"No pattern found for: {no_pattern_names} (abs(r) below 0.30).</p>",
@@ -743,7 +952,7 @@ Positive r = both go up together. Negative r = they go in opposite directions.
                 )
             how_to_read()
             with st.expander("See full ranking table"):
-                st.dataframe(summary, use_container_width=True, hide_index=True)
+                render_compact_dataframe(summary[["Party_full", "r", "Strength"]], rename_map={"Party_full": "Party"})
 
         # ── Case D: multiple parties + multiple metrics → matrix ──────────────
         else:
@@ -759,7 +968,7 @@ Positive r = both go up together. Negative r = they go in opposite directions.
                 st.stop()
             top = max(valid_results, key=lambda x: abs(float(x["r"])))
             strength_cls, strength_tag, headline, concrete, copy_sentence, note = build_finding(
-                top["r"], top["label"], top["party"], s_year, top["merged"])
+                top["r"], top["factor"], top["label"], top["party"], s_year, top["merged"], party_name_mode)
             st.markdown(
                 "<p style='font-size:0.75rem;color:#aaaabc;margin-bottom:0.5rem;'>"
                 "Showing highest correlation across selected factors and parties. "
@@ -767,7 +976,7 @@ Positive r = both go up together. Negative r = they go in opposite directions.
                 unsafe_allow_html=True
             )
             st.markdown(finding_html(strength_cls, strength_tag, headline, concrete, copy_sentence, note,
-                                     context_label=f"Strongest signal: {top['party'].split('. ',1)[-1]} × {top['factor']}"),
+                                     context_label=f"Strongest signal: {format_party_name(top['party'], mode=party_name_mode, compact=True)} × {top['factor']}"),
                         unsafe_allow_html=True)
             other_count = len(valid_results) - 1
             if other_count > 0:
@@ -778,9 +987,9 @@ Positive r = both go up together. Negative r = they go in opposite directions.
                 )
             how_to_read()
             with st.expander("See full correlation table"):
-                flat = [{"Party": r["party"].split(". ",1)[-1], "Factor": r["factor"], "r": r["r"]} for r in valid_results]
+                flat = [{"Party": format_party_name(r["party"], mode=party_name_mode, include_code=True), "Factor": r["factor"], "r": r["r"]} for r in valid_results]
                 flat_df = pd.DataFrame(flat).assign(abs_r=lambda d: d["r"].abs()).sort_values("abs_r", ascending=False).drop(columns="abs_r").reset_index(drop=True)
-                st.dataframe(flat_df, use_container_width=True, hide_index=True)
+                render_compact_dataframe(flat_df)
 
 # ── Compare municipalities ────────────────────────────────────────────────────
 
@@ -816,7 +1025,11 @@ elif page == "Compare municipalities":
     top_parties = diff_abs.mean().sort_values(ascending=False).head(6).index.tolist()
 
     gap_df = (votes_a[top_parties] - votes_b[top_parties]).round(1)
-    gap_df.columns = [p.split(". ", 1)[-1] if ". " in p else p for p in gap_df.columns]
+    gap_chart_df = pd.DataFrame({
+        "Party": [format_party_name(p, mode=party_name_mode, compact=True, include_code=True) for p in top_parties],
+        "Party_full": [format_party_name(p, mode=party_name_mode, include_code=True) for p in top_parties],
+        "Gap": [gap_df[p].mean() for p in top_parties],
+    })
 
     st.markdown(
         f"<p style='font-size:0.82rem;color:#6a6a7a;margin-bottom:0.5rem;'>"
@@ -824,11 +1037,12 @@ elif page == "Compare municipalities":
         f"Positive bar = {mun_a} votes more for that party. Negative = {mun_b} does.</p>",
         unsafe_allow_html=True
     )
-    st.bar_chart(gap_df)
+    render_bar_chart(gap_chart_df, "Party", "Gap", tooltip_label="Party", full_label_col="Party_full")
 
     # Biggest single gap
-    max_gap_party = gap_df.abs().mean().idxmax()
-    max_gap_val = gap_df[max_gap_party].mean().round(1)
+    max_gap_row = gap_chart_df.iloc[gap_chart_df["Gap"].abs().idxmax()]
+    max_gap_party = max_gap_row["Party_full"]
+    max_gap_val = round(float(max_gap_row["Gap"]), 1)
     direction = mun_a if max_gap_val > 0 else mun_b
     st.markdown(
         f'<div class="finding moderate">'
@@ -840,19 +1054,25 @@ elif page == "Compare municipalities":
     )
 
     with st.expander("See full vote history for both municipalities"):
-        col1, col2 = st.columns(2)
-        with col1:
+        display_columns = [format_party_name(p, mode=party_name_mode, compact=True, include_code=True) for p in top_parties]
+        votes_a_display = votes_a[top_parties].round(1).copy()
+        votes_b_display = votes_b[top_parties].round(1).copy()
+        votes_a_display.columns = display_columns
+        votes_b_display.columns = display_columns
+        tab_a, tab_b = st.tabs([mun_a, mun_b])
+        with tab_a:
             st.markdown(f"**{mun_a}**")
-            st.dataframe(votes_a[top_parties].round(1), use_container_width=True)
-        with col2:
+            st.dataframe(votes_a_display, use_container_width=True)
+        with tab_b:
             st.markdown(f"**{mun_b}**")
-            st.dataframe(votes_b[top_parties].round(1), use_container_width=True)
+            st.dataframe(votes_b_display, use_container_width=True)
 
     # ── Socioeconomic profile ─────────────────────────────────────────────────
     st.markdown("## Socioeconomic profile")
     st.markdown(
         "<p style='font-size:0.82rem;color:#6a6a7a;margin-bottom:0.8rem;'>"
-        "Most recent available data for each metric. Welfare, crime, cars and divorces shown per 1,000 residents."
+        "Current municipality profile using the most recent available data for each metric. "
+        "Years may differ by metric. Welfare, crime, cars and divorces are shown per 1,000 residents."
         "</p>", unsafe_allow_html=True
     )
 
@@ -886,7 +1106,7 @@ elif page == "Compare municipalities":
     emp_a, yr = latest_val(employment_df, mun_a)
     emp_b, _  = latest_val(employment_df, mun_b)
     if emp_a and emp_b and pop_a and pop_b:
-        profile_rows.append({"Metric": "Full-time employed per 1,000", mun_a: f"{emp_a/pop_a*1000:.1f}", mun_b: f"{emp_b/pop_b*1000:.1f}", "Year": yr})
+        profile_rows.append({"Metric": "Full-time employees per 1,000", mun_a: f"{emp_a/pop_a*1000:.1f}", mun_b: f"{emp_b/pop_b*1000:.1f}", "Year": yr})
 
     soc_a, yr = latest_val(social_df, mun_a)
     soc_b, _  = latest_val(social_df, mun_b)
@@ -914,7 +1134,9 @@ elif page == "Compare municipalities":
         profile_rows.append({"Metric": "Aged 65+ (%)", mun_a: f"{age_a:.1f}%", mun_b: f"{age_b:.1f}%", "Year": yr})
 
     if profile_rows:
-        st.dataframe(pd.DataFrame(profile_rows), use_container_width=True, hide_index=True)
+        render_profile_cards(profile_rows, mun_a, mun_b)
+        with st.expander("See profile as full table"):
+            st.dataframe(pd.DataFrame(profile_rows), use_container_width=True, hide_index=True)
     else:
         st.info("Socioeconomic data not available for this combination.")
 
@@ -937,7 +1159,7 @@ elif page == "By Municipality":
     with col1:
         year  = st.selectbox("Election year", sorted(mun["year"].unique(), reverse=True))
     with col2:
-        party = st.selectbox("Party", sorted(mun["party"].unique()))
+        party = st.selectbox("Party", sorted(mun["party"].unique()), format_func=lambda p: format_party_name(p, mode=party_name_mode, include_code=True))
 
     filtered = mun[(mun["year"] == year) & (mun["party"] == party)].sort_values("share", ascending=False)
     top    = filtered.iloc[0]
@@ -951,11 +1173,11 @@ elif page == "By Municipality":
         f"<strong>Avg:</strong> {avg:.1f}%</p>",
         unsafe_allow_html=True
     )
-    st.bar_chart(filtered.set_index("municipality")["share"])
-    st.dataframe(
-        filtered[["municipality","share"]].rename(columns={"share":"vote share (%)"}),
-        use_container_width=True, hide_index=True
+    render_compact_dataframe(
+        filtered[["municipality","share"]].rename(columns={"municipality": "Municipality", "share":"Vote %"})
     )
+    with st.expander("Show full municipality bar chart"):
+        st.bar_chart(filtered.set_index("municipality")["share"])
 
 # ── National trends ───────────────────────────────────────────────────────────
 
@@ -968,21 +1190,28 @@ elif page == "National trends":
     )
     parties_nat = sorted(nat["party"].unique())
     selected = st.multiselect("Parties", parties_nat,
-                              default=[p for p in ["S","V","DF","EL","M"] if p in parties_nat])
+                              default=[p for p in ["S","V","DF","EL","M"] if p in parties_nat],
+                              format_func=lambda p: format_party_code(p, mode=party_name_mode, compact=True))
     if selected:
         pivot = nat[nat["party"].isin(selected)].pivot_table(index="year", columns="party", values="share")
+        pivot = pivot.rename(columns=lambda code: format_party_code(code, mode=party_name_mode, compact=True))
         st.line_chart(pivot)
-        st.dataframe(pivot.round(1), use_container_width=True)
+        table = pivot.round(1).astype(object).where(pivot.notna(), "—")
+        st.dataframe(table, use_container_width=True)
 
 # ── About & sources ───────────────────────────────────────────────────────────
 
 elif page == "About & sources":
     st.subheader("About")
     st.markdown("""
-Danish election results 1953–2022, cross-referenced with seven datasets from Danmarks Statistik.
+Danish election results 1953–2022, cross-referenced with a growing set of municipality-level indicators from Danmarks Statistik.
 Built for journalists and researchers. No login required. All data is public and open-licensed (CC 4.0 BY).
 
 Built by [Hedegreen Research](https://hedegreenresearch.com).
+
+**Method note**
+- Correlation ≠ causation.
+- Some municipality indicators use the most recent available year for that metric, so years can differ in profile-style views.
     """)
     st.subheader("Data sources")
     st.markdown("""
