@@ -2,6 +2,84 @@
 
 ---
 
+## 2026-03-26 — Correlation guardrails for invalid results
+
+### What changed and why
+
+This update was driven by a validity problem in the result layer.
+
+The tool could still render a narrative finding even when the underlying Pearson correlation was invalid, missing, or non-finite. That meant the UI could drift into pattern language without a trustworthy correlation value underneath it.
+
+The fix was simple in principle:
+
+> No valid `r` = no pattern claim.
+
+---
+
+### Added a reusable validation layer
+
+- Introduced `correlation_utils.py`
+- Added a shared `is_valid_correlation()` check
+- Added a shared correlation-band helper
+- Added a single guarded correlation compute path
+
+**Why:** Validation should happen once, not separately inside each UI branch.
+
+---
+
+### Invalid results no longer render as findings
+
+If a result is invalid, the app now shows an unavailable state instead of a pattern card.
+
+That means invalid results no longer produce:
+
+- `STRONG / MODERATE / WEAK / NO PATTERN` labels
+- narrative pattern summaries
+- copy-ready “Write this as” text
+- strongest-signal selection
+
+**Why:** Invalid is not weak. Invalid is unknown.
+
+---
+
+### Ranking now excludes invalid correlations
+
+Multi-result views now filter invalid rows before ranking.
+
+That means:
+
+- strongest-signal logic only runs on valid results
+- all-invalid selections produce a neutral no-valid-result state
+- invalid rows no longer compete with real signals
+
+**Why:** Ranking before validation can turn a compute failure into a false headline.
+
+---
+
+### Copy rules tightened
+
+- `Write this as` is no longer shown for `NO PATTERN`
+- invalid results do not produce copy-ready language
+- weak results now use more cautious wording
+
+**Why:** The tool should not generate smooth journalist-ready sentences when the underlying statistical footing is weak or unavailable.
+
+---
+
+### Added basic tests
+
+- Added a first test file covering:
+  - `None`
+  - `NaN`
+  - `inf`
+  - out-of-range values
+  - valid positive / negative values
+  - invalid label fallback
+
+**Why:** These are small tests, but this is exactly the kind of logic that should not silently regress later.
+
+---
+
 ## 2026-03-25 — Language and threshold revision
 
 ### What changed and why
