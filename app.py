@@ -6,7 +6,12 @@ from pathlib import Path
 
 from correlation_utils import correlation_band, corr_strength_label, compute_correlation_result, is_valid_correlation
 
-st.set_page_config(page_title="Danish Politics Data", layout="wide", initial_sidebar_state="expanded")
+embedded_mode = str(st.query_params.get("embedded", "")).lower() in {"1", "true", "yes"}
+st.set_page_config(
+    page_title="Danish Politics Data",
+    layout="wide",
+    initial_sidebar_state="collapsed" if embedded_mode else "expanded",
+)
 
 st.markdown("""
 <style>
