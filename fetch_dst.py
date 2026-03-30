@@ -26,7 +26,7 @@ SOCIO_DIR = ROOT / "denmark" / "socioeconomic"
 FACTOR_DIR = ROOT / "denmark" / "factors"
 INTERNAL_DIR = ROOT / "internal"
 RAW_DIR = INTERNAL_DIR / "raw"
-MANIFEST_DIR = INTERNAL_DIR / "manifests"
+PROVENANCE_DIR = ROOT / "provenance"
 
 BASE_URL = "https://api.statbank.dk/v1"
 KOMMUNEGRUPPER_CSV_URL = "https://www.dst.dk/klassifikationsbilag/edaa83b4-6045-4708-9493-bff4d71282d8csv_da"
@@ -121,7 +121,7 @@ def utc_now() -> str:
 def ensure_dirs() -> None:
     FACTOR_DIR.mkdir(parents=True, exist_ok=True)
     RAW_DIR.mkdir(parents=True, exist_ok=True)
-    MANIFEST_DIR.mkdir(parents=True, exist_ok=True)
+    PROVENANCE_DIR.mkdir(parents=True, exist_ok=True)
 
 
 def fetch_statbank_csv(table_id: str, variables: list[dict[str, list[str]]], lang: str = "en") -> str:
@@ -503,7 +503,7 @@ def main() -> int:
 
     manifest["completed_at"] = utc_now()
     manifest["public_factor_dir"] = str(FACTOR_DIR.relative_to(ROOT))
-    manifest_path = MANIFEST_DIR / f"dst-refresh-{manifest['completed_at'].replace(':', '').replace('-', '')}.json"
+    manifest_path = PROVENANCE_DIR / f"dst-refresh-{manifest['completed_at'].replace(':', '').replace('-', '')}.json"
     write_text(manifest_path, json.dumps(manifest, ensure_ascii=False, indent=2) + "\n")
 
     print(f"[fetch-dst] wrote manifest: {manifest_path.relative_to(ROOT)}")

@@ -264,12 +264,12 @@ Status: first pass completed
 Goal:
 Split the politics data system into:
 
-- an internal provenance layer
+- a public-safe provenance layer
 - a normalized public municipality factor layer that the app reads directly
 
 Completed in this pass:
 
-- added `internal/manifests/`
+- added `provenance/`
 - added `denmark/factors/`
 - moved the app toward normalized factor CSVs instead of raw DST table logic
 - added first public wave beyond the older eight-factor framing:

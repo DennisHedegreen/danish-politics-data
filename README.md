@@ -110,8 +110,8 @@ requirements.txt
 METHODOLOGY.md                  Scientific methodology, bias rules, limitations
 FLOW.md                         UI and logic flow documentation
 internal/
-  manifests/                    Ingest manifests and provenance notes
   raw/                          Reserved for bridge / special-source raw inputs
+provenance/                     Public-safe ingest manifests and provenance notes
 denmark/
   factors/                      Normalized public municipality factor layer
   folketing/                    Election results (FVPANDEL, 2026 VALG bridge, FVKOM, Straubinger)

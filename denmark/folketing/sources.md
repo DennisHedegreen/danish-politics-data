@@ -90,7 +90,7 @@ That means:
 
 - election files in this folder remain the vote-side source of truth
 - municipality factors are built separately through `fetch_dst.py`
-- ordinary DST refreshes should leave a manifest in `internal/manifests/`
+- ordinary DST refreshes should leave a manifest in `provenance/`
 
 ## License
 

@@ -1,6 +1,6 @@
-# Internal Manifests
+# Provenance Manifests
 
-Each ingest run should leave a manifest here.
+Each ingest run should leave a public-safe manifest here.
 
 A manifest should capture:
 

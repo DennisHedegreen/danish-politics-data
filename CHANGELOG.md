@@ -5,7 +5,7 @@
 ## 2026-03-30 — Normalized public factor layer and first 20-factor architecture pass
 
 - Added a normalized municipality-safe public factor layer in `denmark/factors/`.
-- Added `internal/manifests/` and `internal/raw/` as the beginning of the internal/public split.
+- Added `provenance/` and `internal/raw/` as the beginning of the provenance/public split.
 - Rebuilt `fetch_dst.py` so it now writes factor outputs and an ingest manifest instead of acting only as a small election-table fetcher.
 - The app now reads from normalized factor CSVs for the public factor layer instead of relying directly on raw DST table logic.
 - Added the first new public wave beyond the older 8-factor frame:
