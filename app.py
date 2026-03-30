@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import altair as alt
 import random
+from pathlib import Path
 
 from correlation_utils import correlation_band, corr_strength_label, compute_correlation_result, is_valid_correlation
 
@@ -142,7 +143,7 @@ EXCLUDE = lambda s: (
     s.str.startswith("Province") | s.str.startswith("Region") |
     (s == "All Denmark") | (s == "Christiansø")
 )
-ELECTION_TO_POP = {2007:"2008Q1", 2011:"2011Q1", 2015:"2015Q1", 2019:"2019Q1", 2022:"2022Q1"}
+FACTOR_DIR = Path("denmark/factors")
 
 
 def exclude_public_special_cases(df, column="municipality"):
@@ -157,6 +158,18 @@ def invalid_result_detail(reason):
     if reason == "insufficient_rows":
         return "There are too few overlapping municipality rows to compute a reliable correlation."
     return "The correlation value for this selection could not be computed reliably."
+
+
+def municipal_vote_source_label(year):
+    if year == 2026:
+        return "Official VALG 2026 municipality bridge + Danmarks Statistik indicators"
+    return "Danmarks Statistik (CC 4.0 BY)"
+
+
+def municipal_vote_source_inline(year):
+    if year == 2026:
+        return "Official VALG 2026 municipality bridge for vote share + Danmarks Statistik for the selected indicator"
+    return "Danmarks Statistik, CC 4.0 BY"
 
 
 PARTY_METADATA = {
@@ -183,6 +196,7 @@ PARTY_METADATA = {
 PARTY_NAME_MODES = ["Danish", "English", "Both"]
 
 METRIC_SHORT_LABELS = {
+    "Population": "Population",
     "Education": "Higher edu. %",
     "Income": "Income",
     "Employment": "Employed / 1k",
@@ -191,9 +205,14 @@ METRIC_SHORT_LABELS = {
     "Cars": "Cars / 1k",
     "Divorces": "Divorces / 1k",
     "Age 65+": "Age 65+ %",
+    "Turnout": "Turnout %",
+    "Immigration share": "Immigration %",
+    "Population density": "Population / km²",
+    "Unemployment": "Unemployment %",
 }
 
 METRIC_PHRASES = {
+    "Population": "population size",
     "Education": "higher education share",
     "Income": "disposable income",
     "Employment": "full-time employment",
@@ -202,6 +221,10 @@ METRIC_PHRASES = {
     "Cars": "car ownership",
     "Divorces": "divorce rate",
     "Age 65+": "share aged 65+",
+    "Turnout": "voter turnout",
+    "Immigration share": "immigration share",
+    "Population density": "population density",
+    "Unemployment": "unemployment rate",
 }
 
 
@@ -295,7 +318,7 @@ def build_finding(corr, factor_name, metric_label, party, year, merged, party_na
         return "weak", "RESULT UNAVAILABLE", "Result unavailable", \
             "The correlation value for this selection could not be computed reliably. No pattern claim should be made for this result.", \
             None, \
-            f"Correlation unavailable · {len(merged)} municipalities · Danmarks Statistik (CC 4.0 BY)"
+            f"Correlation unavailable · {len(merged)} municipalities · {municipal_vote_source_label(year)}"
 
     abs_r  = abs(corr)
     ranked = merged.sort_values("metric")
@@ -304,7 +327,7 @@ def build_finding(corr, factor_name, metric_label, party, year, merged, party_na
     p_short = format_party_name(party, mode=party_name_mode, prose=True)
     m_short = METRIC_PHRASES.get(factor_name, metric_label.lower())
 
-    note = f"Pearson r = {corr:.2f} · {len(merged)} municipalities · Danmarks Statistik (CC 4.0 BY)"
+    note = f"Pearson r = {corr:.2f} · {len(merged)} municipalities · {municipal_vote_source_label(year)}"
 
     if abs_r < 0.30:
         return (
@@ -339,20 +362,20 @@ def build_finding(corr, factor_name, metric_label, party, year, merged, party_na
             f"Write: <em>\"In the {year} election, municipalities with {direction} {m_short} "
             f"gave on average {gap:.1f} percentage points more to {p_short}. "
             f"Based on data from {len(merged)} Danish municipalities. "
-            f"(Source: Danmarks Statistik, CC 4.0 BY)\"</em>"
+            f"(Source: {municipal_vote_source_inline(year)})\"</em>"
         )
     elif abs_r >= 0.50:
         copy_sentence = (
             f"Write: <em>\"In the {year} election, municipalities with {direction} {m_short} "
             f"tended to give more support to {p_short}. "
             f"Based on data from {len(merged)} Danish municipalities. "
-            f"(Source: Danmarks Statistik, CC 4.0 BY)\"</em>"
+            f"(Source: {municipal_vote_source_inline(year)})\"</em>"
         )
     else:
         copy_sentence = (
             f"Use with caution: <em>\"At municipality level, there is a weak association between {direction} {m_short} "
             f"and vote share for {p_short} in {year}. This does not explain why the pattern exists. "
-            f"Based on data from {len(merged)} Danish municipalities. (Source: Danmarks Statistik, CC 4.0 BY)\"</em>"
+            f"Based on data from {len(merged)} Danish municipalities. (Source: {municipal_vote_source_inline(year)})\"</em>"
         )
 
     if abs_r >= 0.70:
@@ -366,8 +389,22 @@ def build_finding(corr, factor_name, metric_label, party, year, merged, party_na
 
 @st.cache_data
 def load_municipal():
-    df = pd.read_csv("denmark/folketing/fvpandel_party_share.csv", sep=";", encoding="utf-8-sig")
-    df.columns = ["party","municipality","year","share"]
+    frames = []
+    share_files = [
+        Path("denmark/folketing/fvpandel_party_share.csv"),
+        Path("denmark/folketing/fv2026_party_share_by_municipality.csv"),
+    ]
+    for share_file in share_files:
+        if not share_file.exists():
+            continue
+        frame = pd.read_csv(share_file, sep=";", encoding="utf-8-sig")
+        frame.columns = ["party","municipality","year","share"]
+        frames.append(frame)
+
+    if not frames:
+        return pd.DataFrame(columns=["party", "municipality", "year", "share"])
+
+    df = pd.concat(frames, ignore_index=True)
     df["year"] = df["year"].astype(int)
     df = df[(df["party"] != "Total") & (df["municipality"] != "All Denmark")].copy()
     return exclude_public_special_cases(df)
@@ -384,72 +421,74 @@ def load_national():
 
 @st.cache_data
 def load_population():
+    path = FACTOR_DIR / "population.csv"
+    if path.exists():
+        df = pd.read_csv(path)
+        df["year"] = df["year"].astype(int)
+        return exclude_public_special_cases(
+            df.rename(columns={"value": "population"})
+        )
     df = pd.read_csv("denmark/socioeconomic/folk1a_population_annual.csv", sep=";", encoding="utf-8-sig")
     df = df[~EXCLUDE(df["OMRÅDE"])].copy()
     df["year"] = df["TID"].str[:4].astype(int)
     return df[["OMRÅDE","TID","year","INDHOLD"]].rename(columns={"OMRÅDE":"municipality","INDHOLD":"population"})
 
 @st.cache_data
-def load_income():
-    df = pd.read_csv("denmark/socioeconomic/indkp101_income_by_municipality.csv", sep=";", encoding="utf-8-sig")
-    df = df[~EXCLUDE(df["OMRÅDE"])][["OMRÅDE","TID","INDHOLD"]].rename(
-        columns={"OMRÅDE":"municipality","TID":"year","INDHOLD":"value"}).copy()
+def load_factor_file(filename):
+    path = FACTOR_DIR / filename
+    if not path.exists():
+        return pd.DataFrame(columns=["municipality", "year", "value"])
+    df = pd.read_csv(path)
     df["year"] = df["year"].astype(int)
-    return df
+    return exclude_public_special_cases(df)
+
+@st.cache_data
+def load_income():
+    return load_factor_file("income.csv")
 
 @st.cache_data
 def load_social():
-    df = pd.read_csv("denmark/socioeconomic/auk01_social_assistance.csv", sep=";", encoding="utf-8-sig")
-    df = df[~EXCLUDE(df["OMRÅDE"]) & df["TID"].str.endswith("Q4")].copy()
-    df["year"] = df["TID"].str[:4].astype(int)
-    return df[["OMRÅDE","year","INDHOLD"]].rename(columns={"OMRÅDE":"municipality","INDHOLD":"value"})
+    return load_factor_file("welfare_per_1000.csv")
 
 @st.cache_data
 def load_crime():
-    df = pd.read_csv("denmark/socioeconomic/straf11_crime_by_municipality.csv", sep=";", encoding="utf-8-sig")
-    df = df[~EXCLUDE(df["OMRÅDE"])].copy()
-    df["year"] = df["TID"].str[:4].astype(int)
-    return df.groupby(["OMRÅDE","year"])["INDHOLD"].sum().reset_index().rename(
-        columns={"OMRÅDE":"municipality","INDHOLD":"value"})
+    return load_factor_file("crime_per_1000.csv")
 
 @st.cache_data
 def load_cars():
-    df = pd.read_csv("denmark/socioeconomic/bil707_cars_by_municipality.csv", sep=";", encoding="utf-8-sig")
-    df = df[~EXCLUDE(df["OMRÅDE"])][["OMRÅDE","TID","INDHOLD"]].rename(
-        columns={"OMRÅDE":"municipality","TID":"year","INDHOLD":"value"}).copy()
-    df["year"] = df["year"].astype(int)
-    return df
+    return load_factor_file("cars_per_1000.csv")
 
 @st.cache_data
 def load_divorces():
-    df = pd.read_csv("denmark/socioeconomic/ski125_divorces_by_municipality.csv", sep=";", encoding="utf-8-sig")
-    df = df[~EXCLUDE(df["BOPAEGT1"])][["BOPAEGT1","TID","INDHOLD"]].rename(
-        columns={"BOPAEGT1":"municipality","TID":"year","INDHOLD":"value"}).copy()
-    df["year"] = df["year"].astype(int)
-    return df
+    return load_factor_file("divorces_per_1000.csv")
 
 @st.cache_data
 def load_education():
-    df = pd.read_csv("denmark/socioeconomic/hfudd11_higher_edu_pct.csv")
-    df["year"] = df["year"].astype(int)
-    return exclude_public_special_cases(df)  # columns: municipality, year, value (% with higher education)
+    return load_factor_file("education.csv")
 
 @st.cache_data
 def load_age65():
-    df = pd.read_csv("denmark/socioeconomic/folk1a_pct_65plus.csv")
-    df["year"] = df["year"].astype(int)
-    return exclude_public_special_cases(df)  # columns: municipality, year, value (% aged 65+)
+    return load_factor_file("age65_pct.csv")
 
 @st.cache_data
 def load_employment():
-    df = pd.read_csv("denmark/socioeconomic/lbesk69_employees_by_municipality.csv", sep=";", encoding="utf-8-sig")
-    df = df[~EXCLUDE(df["BOPKOM"])][["BOPKOM","TID","INDHOLD"]].rename(
-        columns={"BOPKOM":"municipality","INDHOLD":"value"}).copy()
-    # Keep only the election quarters (matching ELECTION_TO_POP)
-    election_quarters = {"2008Q1": 2007, "2011Q1": 2011, "2015Q1": 2015, "2019Q1": 2019, "2022Q1": 2022}
-    df = df[df["TID"].isin(election_quarters)].copy()
-    df["year"] = df["TID"].map(election_quarters)
-    return df[["municipality","year","value"]]
+    return load_factor_file("employment_per_1000.csv")
+
+@st.cache_data
+def load_turnout():
+    return load_factor_file("turnout_pct.csv")
+
+@st.cache_data
+def load_immigration():
+    return load_factor_file("immigration_share_pct.csv")
+
+@st.cache_data
+def load_population_density():
+    return load_factor_file("population_density.csv")
+
+@st.cache_data
+def load_unemployment():
+    return load_factor_file("unemployment_pct.csv")
 
 mun           = load_municipal()
 nat           = load_national()
@@ -462,6 +501,10 @@ divorce_df    = load_divorces()
 employment_df = load_employment()
 education_df  = load_education()
 age65_df      = load_age65()
+turnout_df    = load_turnout()
+immigration_df = load_immigration()
+density_df    = load_population_density()
+unemployment_df = load_unemployment()
 
 # ── sidebar ───────────────────────────────────────────────────────────────────
 
@@ -470,7 +513,7 @@ with st.sidebar:
     st.markdown("**Danish Politics Data**")
     st.markdown(
         "<p style='font-size:0.75rem;color:#6a6a7a;line-height:1.6;margin-top:0.3rem;'>"
-        "Folketing elections 1953–2022, cross-referenced with income, crime, welfare, cars, and divorce data."
+        "National vote trends 1953–2022. Municipality vote share 2007–2026, with the 2026 layer bridged from the official VALG export."
         "</p>", unsafe_allow_html=True
     )
     st.divider()
@@ -482,7 +525,7 @@ with st.sidebar:
     st.divider()
     st.markdown(
         "<p style='font-size:0.65rem;color:#aaaabc;line-height:1.6;'>"
-        "Data: Danmarks Statistik (CC 4.0 BY)<br>Straubinger/folketingsvalg<br><br>"
+        "Data: Danmarks Statistik + official VALG 2026 bridge<br>Straubinger/folketingsvalg<br><br>"
         "Built by Hedegreen Research"
         "</p>", unsafe_allow_html=True
     )
@@ -490,6 +533,7 @@ with st.sidebar:
 # ── Explore (guided discovery) ────────────────────────────────────────────────
 
 METRIC_OPTIONS = [
+    ("Population",  "Population (reference count)",               "population",   "Do larger municipalities vote differently?"),
     ("Education",   "Higher education share (%)",                "education",   "Do more educated municipalities vote differently?"),
     ("Income",      "Avg. disposable income (DKK per person)",   "income",      "Do wealthier municipalities vote differently?"),
     ("Employment",  "Full-time employees per 1,000 residents",   "employment",  "Do areas with higher employment vote differently?"),
@@ -498,12 +542,22 @@ METRIC_OPTIONS = [
     ("Cars",        "Passenger cars per 1,000 residents",        "cars",        "Do car-heavy (rural) areas vote differently from urban ones?"),
     ("Divorces",    "Divorces per 1,000 residents",              "divorces",    "Does social stability correlate with voting behaviour?"),
     ("Age 65+",     "Share aged 65+ (%)",                        "age65",       "Do older municipalities vote differently?"),
+    ("Turnout",     "Votes cast as share of voters (%)",         "turnout",     "Do high-turnout municipalities vote differently?"),
+    ("Immigration share", "Residents without Danish origin (%)", "immigration", "Do municipalities with larger immigrant and descendant shares vote differently?"),
+    ("Population density", "Residents per km²",                  "density",     "Does dense settlement correlate with voting behaviour?"),
+    ("Unemployment", "Full-time unemployment rate (%)",          "unemployment","Do municipalities with higher unemployment vote differently?"),
 ]
 ALL_METRIC_KEYS    = [m[0] for m in METRIC_OPTIONS]
 ALL_PARTY_NAMES    = sorted(mun["party"].unique())
 ALL_ELECTION_YEARS = sorted(mun["year"].unique())
+DEFAULT_EXPLORE_YEAR = 2022 if 2022 in ALL_ELECTION_YEARS else ALL_ELECTION_YEARS[-1]
+MUNICIPAL_ELECTION_RANGE_LABEL = f"{ALL_ELECTION_YEARS[0]}–{ALL_ELECTION_YEARS[-1]}"
 
-def get_metric_series(metric_key, year, pop, _income, _social, _crime, _cars, _divorces, _employment, _education, _age65):
+def get_metric_series(metric_key, year, _population, _income, _social, _crime, _cars, _divorces, _employment, _education, _age65, _turnout, _immigration, _density, _unemployment):
+    if metric_key == "population":
+        df = _population[_population["year"] == year][["municipality", "population"]].copy()
+        df["metric"] = df["population"]
+        return df[["municipality", "metric"]]
     if metric_key == "education":
         df = _education[_education["year"] == year][["municipality","value"]].copy()
         df["metric"] = df["value"]
@@ -517,38 +571,100 @@ def get_metric_series(metric_key, year, pop, _income, _social, _crime, _cars, _d
         df["metric"] = df["value"]
         return df[["municipality","metric"]]
     elif metric_key == "employment":
-        df = _employment[_employment["year"] == year][["municipality","value"]].merge(pop, on="municipality").copy()
-        df["metric"] = (df["value"] / df["population"] * 1000).round(1)
+        df = _employment[_employment["year"] == year][["municipality","value"]].copy()
+        df["metric"] = df["value"]
         return df[["municipality","metric"]]
     elif metric_key == "social":
-        df = _social[_social["year"] == year][["municipality","value"]].merge(pop, on="municipality").copy()
-        df["metric"] = (df["value"] / df["population"] * 1000).round(2)
+        df = _social[_social["year"] == year][["municipality","value"]].copy()
+        df["metric"] = df["value"]
         return df[["municipality","metric"]]
     elif metric_key == "crime":
-        df = _crime[_crime["year"] == year][["municipality","value"]].merge(pop, on="municipality").copy()
-        df["metric"] = (df["value"] / df["population"] * 1000).round(1)
+        df = _crime[_crime["year"] == year][["municipality","value"]].copy()
+        df["metric"] = df["value"]
         return df[["municipality","metric"]]
     elif metric_key == "cars":
-        df = _cars[_cars["year"] == year][["municipality","value"]].merge(pop, on="municipality").copy()
-        df["metric"] = (df["value"] / df["population"] * 1000).round(1)
+        df = _cars[_cars["year"] == year][["municipality","value"]].copy()
+        df["metric"] = df["value"]
         return df[["municipality","metric"]]
     elif metric_key == "divorces":
-        df = _divorces[_divorces["year"] == year][["municipality","value"]].merge(pop, on="municipality").copy()
-        df["metric"] = (df["value"] / df["population"] * 1000).round(2)
+        df = _divorces[_divorces["year"] == year][["municipality","value"]].copy()
+        df["metric"] = df["value"]
+        return df[["municipality","metric"]]
+    elif metric_key == "turnout":
+        df = _turnout[_turnout["year"] == year][["municipality","value"]].copy()
+        df["metric"] = df["value"]
+        return df[["municipality","metric"]]
+    elif metric_key == "immigration":
+        df = _immigration[_immigration["year"] == year][["municipality","value"]].copy()
+        df["metric"] = df["value"]
+        return df[["municipality","metric"]]
+    elif metric_key == "density":
+        df = _density[_density["year"] == year][["municipality","value"]].copy()
+        df["metric"] = df["value"]
+        return df[["municipality","metric"]]
+    elif metric_key == "unemployment":
+        df = _unemployment[_unemployment["year"] == year][["municipality","value"]].copy()
+        df["metric"] = df["value"]
         return df[["municipality","metric"]]
     return pd.DataFrame()
 
+
+def metric_has_usable_year_data(metric_frame):
+    if metric_frame.empty or "municipality" not in metric_frame.columns or "metric" not in metric_frame.columns:
+        return False
+    usable = metric_frame.dropna(subset=["metric"]).copy()
+    if usable.empty:
+        return False
+    if usable["municipality"].nunique() < 10:
+        return False
+    if usable["metric"].nunique() <= 1:
+        return False
+    return True
+
+
+def available_metric_keys_for_year(year, _population, _income, _social, _crime, _cars, _divorces, _employment, _education, _age65, _turnout, _immigration, _density, _unemployment):
+    available = []
+    for metric_name, _, metric_key, _ in METRIC_OPTIONS:
+        metric_frame = get_metric_series(
+            metric_key,
+            year,
+            _population,
+            _income,
+            _social,
+            _crime,
+            _cars,
+            _divorces,
+            _employment,
+            _education,
+            _age65,
+            _turnout,
+            _immigration,
+            _density,
+            _unemployment,
+        )
+        if metric_has_usable_year_data(metric_frame):
+            available.append(metric_name)
+    return available
+
+
+def available_parties_for_year(year, municipal_df):
+    year_frame = municipal_df[municipal_df["year"] == year].copy()
+    if year_frame.empty:
+        return []
+    year_frame["share"] = pd.to_numeric(year_frame["share"], errors="coerce")
+    active = year_frame.groupby("party", dropna=False)["share"].sum(min_count=1).reset_index()
+    active = active[active["share"].fillna(0) > 0]
+    return sorted(active["party"].unique())
+
 @st.cache_data
-def precompute_all_correlations(_mun, _pop_df, _income_df, _social_df, _crime_df, _cars_df, _divorce_df, _employment_df, _education_df, _age65_df):
+def precompute_all_correlations(_mun, _pop_df, _income_df, _social_df, _crime_df, _cars_df, _divorce_df, _employment_df, _education_df, _age65_df, _turnout_df, _immigration_df, _density_df, _unemployment_df):
     rows = []
     for year in sorted(_mun["year"].unique()):
-        pop_key = ELECTION_TO_POP.get(year, f"{year}Q1")
-        pop = _pop_df[_pop_df["TID"] == pop_key][["municipality","population"]]
         for party in sorted(_mun["party"].unique()):
             votes = _mun[(_mun["year"] == year) & (_mun["party"] == party)][["municipality","share"]]
             if votes.empty: continue
             for m_name, m_label, m_key, _ in METRIC_OPTIONS:
-                ms = get_metric_series(m_key, year, pop, _income_df, _social_df, _crime_df, _cars_df, _divorce_df, _employment_df, _education_df, _age65_df)
+                ms = get_metric_series(m_key, year, _pop_df, _income_df, _social_df, _crime_df, _cars_df, _divorce_df, _employment_df, _education_df, _age65_df, _turnout_df, _immigration_df, _density_df, _unemployment_df)
                 if ms.empty or "municipality" not in ms.columns: continue
                 merged = votes.merge(ms, on="municipality", how="inner")
                 computed = compute_correlation_result(merged, factor=m_name, party=party, year=year, mode="precompute")
@@ -557,7 +673,7 @@ def precompute_all_correlations(_mun, _pop_df, _income_df, _social_df, _crime_df
                 rows.append({"year": year, "party": party, "factor": m_name, "label": m_label, "r": computed["r"]})
     return pd.DataFrame(rows)
 
-all_corr_df = precompute_all_correlations(mun, pop_df, income_df, social_df, crime_df, cars_df, divorce_df, employment_df, education_df, age65_df)
+all_corr_df = precompute_all_correlations(mun, pop_df, income_df, social_df, crime_df, cars_df, divorce_df, employment_df, education_df, age65_df, turnout_df, immigration_df, density_df, unemployment_df)
 
 if page == "Explore":
 
@@ -565,15 +681,22 @@ if page == "Explore":
     if "cx_factors" not in st.session_state:
         st.session_state["cx_factors"] = ["Income"]
     if "cx_year" not in st.session_state:
-        st.session_state["cx_year"] = ALL_ELECTION_YEARS[-1]
+        st.session_state["cx_year"] = DEFAULT_EXPLORE_YEAR
+    if "cx_all_parties" not in st.session_state:
+        st.session_state["cx_all_parties"] = True
     if "cx_parties" not in st.session_state:
-        st.session_state["cx_parties"] = ["A. The Social Democratic Party"]
+        st.session_state["cx_parties"] = []
+    if "cx_year_seen" not in st.session_state:
+        st.session_state["cx_year_seen"] = st.session_state["cx_year"]
+    if "cx_parties_seen_for_year" not in st.session_state:
+        st.session_state["cx_parties_seen_for_year"] = []
 
     # Apply surprise values BEFORE widgets render (Streamlit requires this order)
     if st.session_state.get("_surprise_pending"):
         st.session_state["cx_year"]    = st.session_state.pop("_surprise_year")
         st.session_state["cx_factors"] = st.session_state.pop("_surprise_factors")
         st.session_state["cx_parties"] = st.session_state.pop("_surprise_parties")
+        st.session_state["cx_all_parties"] = False
         del st.session_state["_surprise_pending"]
 
     st.markdown("<p style='font-size:0.65rem;font-weight:500;letter-spacing:0.12em;text-transform:uppercase;color:#aaaabc;margin-bottom:0.2rem;'>Danish Politics Data</p>", unsafe_allow_html=True)
@@ -584,28 +707,92 @@ if page == "Explore":
         "</p>", unsafe_allow_html=True
     )
 
-    # ── Step 1: metrics (pills / toggles) ────────────────────────────────────
-    st.markdown('<div class="step-label">Step 1 — What factors are you curious about?</div>', unsafe_allow_html=True)
-    cx_metric_keys = st.pills(
-        "factors", ALL_METRIC_KEYS, key="cx_factors",
-        selection_mode="multi",
-        label_visibility="collapsed"
-    )
-
-    # ── Step 2: year ──────────────────────────────────────────────────────────
-    st.markdown('<div class="step-label" style="margin-top:1rem;">Step 2 — Which election year?</div>', unsafe_allow_html=True)
+    # ── Step 1: year ──────────────────────────────────────────────────────────
+    st.markdown('<div class="step-label">Step 1 — Which election year?</div>', unsafe_allow_html=True)
     cx_year = st.select_slider("year", options=ALL_ELECTION_YEARS, key="cx_year",
                                label_visibility="collapsed")
 
-    # ── Step 3: parties (multi) ───────────────────────────────────────────────
-    st.markdown('<div class="step-label" style="margin-top:1rem;">Step 3 — Which parties? (pick one or more, or all)</div>', unsafe_allow_html=True)
-    all_toggle = st.checkbox("All parties")
-    if all_toggle:
-        cx_parties = ALL_PARTY_NAMES
+    available_metric_keys = available_metric_keys_for_year(
+        cx_year,
+        pop_df,
+        income_df,
+        social_df,
+        crime_df,
+        cars_df,
+        divorce_df,
+        employment_df,
+        education_df,
+        age65_df,
+        turnout_df,
+        immigration_df,
+        density_df,
+        unemployment_df,
+    )
+    parties_for_year = available_parties_for_year(cx_year, mun)
+
+    current_metric_selection = [m for m in st.session_state.get("cx_factors", []) if m in available_metric_keys]
+    if available_metric_keys and not current_metric_selection:
+        current_metric_selection = [available_metric_keys[0]]
+    st.session_state["cx_factors"] = current_metric_selection
+
+    previous_year = st.session_state.get("cx_year_seen")
+    previous_parties_for_year = st.session_state.get("cx_parties_seen_for_year", [])
+    year_changed = previous_year != cx_year
+    current_party_selection = [p for p in st.session_state.get("cx_parties", []) if p in parties_for_year]
+    if st.session_state.get("cx_all_parties"):
+        current_party_selection = parties_for_year
+    elif year_changed:
+        newly_available = [p for p in parties_for_year if p not in previous_parties_for_year]
+        if newly_available:
+            current_party_selection = [
+                party for party in parties_for_year
+                if party in set(current_party_selection) | set(newly_available)
+            ]
+    st.session_state["cx_parties"] = current_party_selection
+    st.session_state["cx_year_seen"] = cx_year
+    st.session_state["cx_parties_seen_for_year"] = parties_for_year
+
+    # ── Step 2: metrics (year-aware selector) ────────────────────────────────
+    st.markdown('<div class="step-label" style="margin-top:1rem;">Step 2 — What factors are available for that year?</div>', unsafe_allow_html=True)
+    if available_metric_keys:
+        cx_metric_keys = st.pills(
+            "factors",
+            available_metric_keys,
+            key="cx_factors",
+            selection_mode="multi",
+            label_visibility="collapsed",
+        )
     else:
-        cx_parties = st.multiselect("parties", ALL_PARTY_NAMES, key="cx_parties",
-                                    format_func=lambda p: format_party_name(p, mode=party_name_mode, include_code=True),
-                                    label_visibility="collapsed")
+        cx_metric_keys = []
+        st.markdown(
+            "<p style='font-size:0.74rem;color:#8888a0;margin-bottom:0;'>"
+            "No usable municipality factor layer is available for that election year yet."
+            "</p>",
+            unsafe_allow_html=True,
+        )
+
+    # ── Step 3: parties (year-aware quick buttons + advanced multi) ─────────
+    st.markdown('<div class="step-label" style="margin-top:1rem;">Step 3 — Pick a party</div>', unsafe_allow_html=True)
+    all_toggle = st.checkbox("All parties", key="cx_all_parties")
+    if all_toggle:
+        cx_parties = parties_for_year
+        st.session_state["cx_parties"] = parties_for_year
+    else:
+        cx_parties = st.pills(
+            "parties",
+            parties_for_year,
+            key="cx_parties",
+            selection_mode="multi",
+            format_func=lambda p: format_party_name(p, mode=party_name_mode, compact=True, include_code=True),
+            label_visibility="collapsed",
+        )
+        if not cx_parties:
+            st.markdown(
+                "<p style='font-size:0.74rem;color:#8888a0;margin-top:0.45rem;margin-bottom:0;'>"
+                "No party is currently selected. Municipality-level pattern analysis requires at least one party selection."
+                "</p>",
+                unsafe_allow_html=True,
+            )
 
     # ── Step 4: highlight a municipality (optional) ───────────────────────────
     st.markdown('<div class="step-label" style="margin-top:1rem;">Step 4 — Highlight a specific municipality? (optional)</div>', unsafe_allow_html=True)
@@ -616,9 +803,18 @@ if page == "Explore":
 
     st.markdown("<div style='height:1rem'></div>", unsafe_allow_html=True)
 
+    if cx_year == 2026:
+        st.markdown(
+            "<p style='font-size:0.74rem;color:#8888a0;margin-top:0.2rem;margin-bottom:0.9rem;'>"
+            "2026 municipality vote share comes from an official VALG fine-count aggregation. "
+            "The wider municipality indicator refresh is still partial, so some factor combinations remain unavailable."
+            "</p>",
+            unsafe_allow_html=True,
+        )
+
     col_main, col_surprise = st.columns([3, 1])
     with col_main:
-        if st.button("Show me what the data reveals →", type="primary", use_container_width=True):
+        if st.button("Show me what the data reveals →", type="primary", use_container_width=True, disabled=(not available_metric_keys or not parties_for_year or not cx_parties)):
             st.session_state["explore_show"] = True
     with col_surprise:
         if st.button("Surprise me →", use_container_width=True):
@@ -657,11 +853,14 @@ if page == "Explore":
         s_year, s_parties, s_metric_keys = cx_year, cx_parties, cx_metric_keys
 
         if not s_metric_keys or not s_parties:
-            st.warning("Select at least one factor and one party.")
+            st.markdown(
+                '<div class="finding weak">'
+                '<div class="strength-tag">SELECTION INCOMPLETE</div>'
+                '<div class="headline">This analysis cannot run yet.</div>'
+                '<div class="body">A municipality-level correlation requires at least one factor and at least one party selection. No result should be inferred from an empty selection state.</div>'
+                '</div>', unsafe_allow_html=True
+            )
             st.stop()
-
-        pop_key = ELECTION_TO_POP.get(s_year, f"{s_year}Q1")
-        pop     = pop_df[pop_df["TID"] == pop_key][["municipality","population"]]
 
         # Build correlation matrix: rows=parties, cols=metrics
         results = []
@@ -670,7 +869,7 @@ if page == "Explore":
             for mk in s_metric_keys:
                 m_info  = next(m for m in METRIC_OPTIONS if m[0] == mk)
                 m_label = m_info[1]
-                ms = get_metric_series(m_info[2], s_year, pop, income_df, social_df, crime_df, cars_df, divorce_df, employment_df, education_df, age65_df)
+                ms = get_metric_series(m_info[2], s_year, pop_df, income_df, social_df, crime_df, cars_df, divorce_df, employment_df, education_df, age65_df, turnout_df, immigration_df, density_df, unemployment_df)
                 if ms.empty or "municipality" not in ms.columns:
                     continue
                 merged  = votes.merge(ms, on="municipality", how="inner")
@@ -868,7 +1067,7 @@ Positive r = both go up together. Negative r = they go in opposite directions.
                 factor_series = {}
                 for mk in s_metric_keys:
                     m_info = next(m for m in METRIC_OPTIONS if m[0] == mk)
-                    ms = get_metric_series(m_info[2], s_year, pop, income_df, social_df, crime_df, cars_df, divorce_df, employment_df, education_df, age65_df)
+                    ms = get_metric_series(m_info[2], s_year, pop_df, income_df, social_df, crime_df, cars_df, divorce_df, employment_df, education_df, age65_df, turnout_df, immigration_df, density_df, unemployment_df)
                     if not ms.empty:
                         factor_series[mk] = ms.set_index("municipality")["metric"]
                 rank_order = {r["factor"]: i for i, r in enumerate(ranked)}
@@ -1049,7 +1248,7 @@ elif page == "Compare municipalities":
         f'<div class="headline">Biggest difference: {max_gap_party}</div>'
         f'<div class="body">On average across all elections, <strong>{direction}</strong> votes '
         f'<strong>{abs(max_gap_val):.1f} percentage points more</strong> for {max_gap_party} than the other municipality.</div>'
-        f'<div class="footnote">Based on 2007–2022 elections · Danmarks Statistik (CC 4.0 BY)</div>'
+        f'<div class="footnote">Based on {MUNICIPAL_ELECTION_RANGE_LABEL} municipality elections · Danmarks Statistik (2007–2022) + official VALG bridge (2026)</div>'
         f'</div>', unsafe_allow_html=True
     )
 
@@ -1084,7 +1283,7 @@ elif page == "Compare municipalities":
         return (float(v.values[0]) if len(v) > 0 else None), int(yr)
 
     def pop_for(municipality):
-        sub = pop_df[pop_df["municipality"] == municipality].sort_values("TID", ascending=False)
+        sub = pop_df[pop_df["municipality"] == municipality].sort_values(["year", "reference_period"], ascending=False)
         if sub.empty: return None
         return float(sub["population"].values[0])
 
@@ -1092,6 +1291,11 @@ elif page == "Compare municipalities":
     pop_b = pop_for(mun_b)
 
     profile_rows = []
+
+    pop_value_a, pop_year = latest_val(pop_df, mun_a, val_col="population")
+    pop_value_b, _ = latest_val(pop_df, mun_b, val_col="population")
+    if pop_value_a and pop_value_b:
+        profile_rows.append({"Metric": "Population", mun_a: f"{pop_value_a:,.0f}", mun_b: f"{pop_value_b:,.0f}", "Year": pop_year})
 
     edu_a, yr = latest_val(education_df, mun_a)
     edu_b, _  = latest_val(education_df, mun_b)
@@ -1133,6 +1337,26 @@ elif page == "Compare municipalities":
     if age_a and age_b:
         profile_rows.append({"Metric": "Aged 65+ (%)", mun_a: f"{age_a:.1f}%", mun_b: f"{age_b:.1f}%", "Year": yr})
 
+    turnout_a, yr = latest_val(turnout_df, mun_a)
+    turnout_b, _ = latest_val(turnout_df, mun_b)
+    if turnout_a and turnout_b:
+        profile_rows.append({"Metric": "Turnout (%)", mun_a: f"{turnout_a:.1f}%", mun_b: f"{turnout_b:.1f}%", "Year": yr})
+
+    imm_a, yr = latest_val(immigration_df, mun_a)
+    imm_b, _ = latest_val(immigration_df, mun_b)
+    if imm_a and imm_b:
+        profile_rows.append({"Metric": "Residents without Danish origin (%)", mun_a: f"{imm_a:.1f}%", mun_b: f"{imm_b:.1f}%", "Year": yr})
+
+    dens_a, yr = latest_val(density_df, mun_a)
+    dens_b, _ = latest_val(density_df, mun_b)
+    if dens_a and dens_b:
+        profile_rows.append({"Metric": "Population density (per km²)", mun_a: f"{dens_a:.1f}", mun_b: f"{dens_b:.1f}", "Year": yr})
+
+    unemp_a, yr = latest_val(unemployment_df, mun_a)
+    unemp_b, _ = latest_val(unemployment_df, mun_b)
+    if unemp_a and unemp_b:
+        profile_rows.append({"Metric": "Unemployment (%)", mun_a: f"{unemp_a:.1f}%", mun_b: f"{unemp_b:.1f}%", "Year": yr})
+
     if profile_rows:
         render_profile_cards(profile_rows, mun_a, mun_b)
         with st.expander("See profile as full table"):
@@ -1159,7 +1383,8 @@ elif page == "By Municipality":
     with col1:
         year  = st.selectbox("Election year", sorted(mun["year"].unique(), reverse=True))
     with col2:
-        party = st.selectbox("Party", sorted(mun["party"].unique()), format_func=lambda p: format_party_name(p, mode=party_name_mode, include_code=True))
+        parties_for_year = available_parties_for_year(year, mun)
+        party = st.selectbox("Party", parties_for_year, format_func=lambda p: format_party_name(p, mode=party_name_mode, include_code=True))
 
     filtered = mun[(mun["year"] == year) & (mun["party"] == party)].sort_values("share", ascending=False)
     top    = filtered.iloc[0]
@@ -1204,7 +1429,7 @@ elif page == "National trends":
 elif page == "About & sources":
     st.subheader("About")
     st.markdown("""
-Danish election results 1953–2022, cross-referenced with a growing set of municipality-level indicators from Danmarks Statistik.
+National Danish election results 1953–2022, plus municipality-level vote share 2007–2026, cross-referenced with a growing set of municipality-level indicators from Danmarks Statistik.
 Built for journalists and researchers. No login required. All data is public and open-licensed (CC 4.0 BY).
 
 Built by [Hedegreen Research](https://hedegreenresearch.com).
@@ -1212,15 +1437,21 @@ Built by [Hedegreen Research](https://hedegreenresearch.com).
 **Method note**
 - Correlation ≠ causation.
 - Some municipality indicators use the most recent available year for that metric, so years can differ in profile-style views.
+ - The 2026 municipality vote-share layer is currently bridged from the official `VALG` export before the familiar Statistikbanken municipality tables catch up.
     """)
     st.subheader("Data sources")
     st.markdown("""
 <div class="source-item"><strong>FVPANDEL</strong> — Party vote share per municipality, 2007–2022. Danmarks Statistik</div>
+<div class="source-item"><strong>VALG public export</strong> — Official 2026 fine-count results aggregated from polling-area level to municipality level for the public bridge layer.</div>
 <div class="source-item"><strong>Straubinger/folketingsvalg</strong> — National vote counts, 1953–2022. GitHub</div>
 <div class="source-item"><strong>INDKP101</strong> — Avg. disposable income per municipality, 1987–2024. Danmarks Statistik</div>
 <div class="source-item"><strong>AUK01</strong> — Social assistance recipients per municipality, 2007–present. Danmarks Statistik</div>
 <div class="source-item"><strong>STRAF11</strong> — Reported crimes per municipality, 2007–present. Danmarks Statistik</div>
 <div class="source-item"><strong>BIL707</strong> — Passenger cars per municipality, 2007–present. Danmarks Statistik</div>
 <div class="source-item"><strong>SKI125</strong> — Divorces per municipality, 2007–present. Danmarks Statistik</div>
-<div class="source-item"><strong>FOLK1A</strong> — Population per municipality (used for per-capita calculations). Danmarks Statistik</div>
+<div class="source-item"><strong>FOLK1AM</strong> — Population per municipality. Danmarks Statistik</div>
+<div class="source-item"><strong>FVKOM</strong> — Municipality turnout can be derived from valid + invalid votes versus number of voters. Danmarks Statistik</div>
+<div class="source-item"><strong>FOLK1E</strong> — Immigration share at municipality level via herkomst categories. Danmarks Statistik</div>
+<div class="source-item"><strong>ARE207</strong> — Area per municipality for density calculations. Danmarks Statistik</div>
+<div class="source-item"><strong>AUP02</strong> — Unemployment rate per municipality. Danmarks Statistik</div>
     """, unsafe_allow_html=True)

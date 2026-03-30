@@ -1,0 +1,49 @@
+{
+  "election": "folketing-2026-03-24",
+  "source": {
+    "system": "data.valg.dk",
+    "path": "sftp://Valg:Valg@data.valg.dk/data/folketingsvalg-135-24-03-2026",
+    "result_dir": "sftp://Valg:Valg@data.valg.dk/data/folketingsvalg-135-24-03-2026/valgresultater/",
+    "geography_files": {
+      "kommune": "sftp://Valg:Valg@data.valg.dk/data/folketingsvalg-135-24-03-2026/geografi/Kommune-190320261917.json",
+      "afstemningsomraade": "sftp://Valg:Valg@data.valg.dk/data/folketingsvalg-135-24-03-2026/geografi/Afstemningsomraade-190320261917.json"
+    }
+  },
+  "status": "official_final_fintaelling",
+  "year": 2026,
+  "result_files": 1314,
+  "polling_areas_in_geography": 1314,
+  "municipalities": 98,
+  "municipality_meta_sample": {
+    "Aabenraa": {
+      "kommunekode": 580,
+      "storkreds": "Sydjylland",
+      "valgdag": "24-03-2026",
+      "resultatart": "Fintælling"
+    },
+    "Aalborg": {
+      "kommunekode": 851,
+      "storkreds": "Nordjylland",
+      "valgdag": "24-03-2026",
+      "resultatart": "Fintælling"
+    },
+    "Aarhus": {
+      "kommunekode": 751,
+      "storkreds": "Østjylland",
+      "valgdag": "24-03-2026",
+      "resultatart": "Fintælling"
+    },
+    "Albertslund": {
+      "kommunekode": 165,
+      "storkreds": "Københavns Omegn",
+      "valgdag": "24-03-2026",
+      "resultatart": "Fintælling"
+    },
+    "Allerød": {
+      "kommunekode": 201,
+      "storkreds": "Nordsjælland",
+      "valgdag": "24-03-2026",
+      "resultatart": "Fintælling"
+    }
+  }
+}

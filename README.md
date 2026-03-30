@@ -8,7 +8,24 @@ Built by [Hedegreen Research](https://hedegreenresearch.com).
 
 ## What it does
 
-Pick a factor (income, education, crime, cars, welfare, divorces, employment, age 65+), an election year (2007–2022), and one or more parties. The tool computes the Pearson correlation across all 98 Danish municipalities and tells you whether a pattern exists — and how strong it is.
+Pick an election year, one or more parties, and one or more municipality factors from the current public factor layer. That layer now reads from normalized municipality-safe factor files instead of mixing raw DST tables directly into the app.
+
+Current public factors include:
+
+- population
+- education
+- income
+- employment
+- welfare
+- crime
+- cars
+- age 65+
+- turnout
+- immigration share
+- population density
+- unemployment
+
+`Divorces` remains in the system conceptually, but the public factor is currently withheld until the correct municipality-total source path is locked. Municipality vote share runs from `2007` to `2026`, with `2026` bridged from the official `VALG` export before the familiar Statistikbanken municipality tables catch up. The tool computes the Pearson correlation across all 98 Danish municipalities and tells you whether a pattern exists — and how strong it is.
 
 **It surfaces patterns. It does not explain them.**
 
@@ -21,10 +38,16 @@ pip install -r requirements.txt
 streamlit run app.py
 ```
 
-To re-fetch all data from Danmarks Statistik:
+To rebuild the normalized public factor layer:
 
 ```bash
 python fetch_dst.py
+```
+
+To fetch and aggregate the official 2026 election bridge from `data.valg.dk`:
+
+```bash
+python fetch_valg_2026.py
 ```
 
 ---
@@ -33,7 +56,8 @@ python fetch_dst.py
 
 | Dataset | Source | Table | Licence |
 |---|---|---|---|
-| Party vote share per municipality | Danmarks Statistik | FVPANDEL | CC 4.0 BY |
+| Party vote share per municipality, 2007–2022 | Danmarks Statistik | FVPANDEL | CC 4.0 BY |
+| Party vote share per municipality, 2026 bridge | Official `VALG` public export aggregated from polling-area level | JSON over SFTP | Official public source |
 | Raw votes per municipality | Danmarks Statistik | FVKOM | CC 4.0 BY |
 | National votes 1953–2022 | Straubinger/folketingsvalg | — | — |
 | Avg. disposable income | Danmarks Statistik | INDKP101 | CC 4.0 BY |
@@ -42,8 +66,12 @@ python fetch_dst.py
 | Passenger cars | Danmarks Statistik | BIL707 | CC 4.0 BY |
 | Divorces | Danmarks Statistik | SKI125 | CC 4.0 BY |
 | Full-time employed | Danmarks Statistik | LBESK69 | CC 4.0 BY |
-| Population | Danmarks Statistik | FOLK1A | CC 4.0 BY |
+| Population | Danmarks Statistik | FOLK1AM + legacy FOLK1A bridge | CC 4.0 BY |
 | Higher education share | Danmarks Statistik | HFUDD11 | CC 4.0 BY |
+| Voter turnout | Danmarks Statistik | FVKOM-derived | CC 4.0 BY |
+| Immigration share | Danmarks Statistik | FOLK1E | CC 4.0 BY |
+| Population density | Danmarks Statistik | ARE207 + population bridge | CC 4.0 BY |
+| Unemployment rate | Danmarks Statistik | AUP02 | CC 4.0 BY |
 
 All Danmarks Statistik data: **CC 4.0 BY — Danmarks Statistik, www.dst.dk**
 
@@ -76,11 +104,16 @@ See [METHODOLOGY.md](METHODOLOGY.md) for the full scientific methodology, bias r
 
 ```
 app.py                          Main Streamlit application
-fetch_dst.py                    Fetches/updates data from Danmarks Statistik API
+fetch_dst.py                    Builds the normalized public factor layer from DST sources
+fetch_valg_2026.py              Aggregates the official 2026 VALG export to municipality CSVs
 requirements.txt
 METHODOLOGY.md                  Scientific methodology, bias rules, limitations
 FLOW.md                         UI and logic flow documentation
+internal/
+  manifests/                    Ingest manifests and provenance notes
+  raw/                          Reserved for bridge / special-source raw inputs
 denmark/
-  folketing/                    Election results (FVPANDEL, FVKOM, Straubinger)
+  factors/                      Normalized public municipality factor layer
+  folketing/                    Election results (FVPANDEL, 2026 VALG bridge, FVKOM, Straubinger)
   socioeconomic/                Municipal socioeconomic data (income, crime, etc.)
 ```

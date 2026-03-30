@@ -34,7 +34,8 @@ Still open:
 - deeper mobile table friction
 - compare-view wording and layout polish
 - methodology / source notes that should be clearer in public
-- three new housing / commute factors
+- Wave 2 housing / commute factors
+- proper municipality-total divorce source
 
 ---
 
@@ -119,18 +120,36 @@ Tasks:
 
 ## Phase 4 — New Factors
 
-Status: research first
+Status: active first pass
 
 Goal:
-Add three new factors properly, not decoratively.
+Grow the public factor layer without turning the tool into a messy table dump.
 
 Factors:
 
-1. Average commute distance
-2. Share owner-occupied housing
-3. Share living in detached houses
+Wave 1 now landed:
 
-Required before implementation:
+1. Population
+2. Voter turnout
+3. Immigration share
+4. Population density
+5. Unemployment
+
+Still not honest enough for public release:
+
+6. Urban/rural classification as a numeric correlation factor
+7. Correct municipality-total divorces rebuild
+
+Wave 2 target factors:
+
+8. Average commute distance
+9. Share owner-occupied housing
+10. Share living in detached houses
+11. Apartment share
+12. Students share
+13. Single-person household share
+
+Required before implementation for any new factor:
 
 - identify exact Statistikbanken table
 - choose exact municipality-level definition
@@ -151,6 +170,7 @@ Required after integration:
 Rule:
 
 No new factor enters the UI until it has earned first-class status.
+If the source path is wrong, the factor should disappear rather than survive as a lie.
 
 ---
 
@@ -199,6 +219,130 @@ Then:
 - commit
 - push
 - decide whether to send again
+
+---
+
+## Phase 6A — 2026 Election Bridge
+
+Status: first pass completed
+
+Goal:
+Bring the 2026 Folketing election into the internal system at finer-than-municipality resolution
+and normalize it into a municipality export that the public tool can eventually read.
+
+Tasks:
+
+- done:
+  - chose `data.valg.dk` as the first operational 2026 source path
+  - captured the official 2026 fine-count export at polling-area resolution
+  - normalized party codes into the public-tool party label layer
+  - mapped polling-area results to municipalities through official geography files
+  - produced the first municipality-level exports:
+    - `fv2026_party_share_by_municipality.csv`
+    - `fv2026_votes_by_municipality.csv`
+    - `fv2026_manifest.json`
+  - verified municipality coverage and vote totals in the first bridge pass
+- still open:
+  - decide whether to refresh the wider municipality indicator layer for 2026 now or keep 2026 as a partly bridged year for a while
+  - decide how long the public tool should keep the bridged municipality layer before later DST municipality tables, if and when they arrive
+  - decide whether to keep a richer reusable internal polling-area store instead of only the municipality bridge outputs
+
+Rule:
+
+Do not push 2026 into the public tool as if it were just another ordinary Statistikbanken year.
+
+Purpose underneath:
+
+This is the first real bridge between the private analysis machine and `Danish Politics Data`.
+
+---
+
+## Phase 6B — Normalized Public Factor Layer
+
+Status: first pass completed
+
+Goal:
+Split the politics data system into:
+
+- an internal provenance layer
+- a normalized public municipality factor layer that the app reads directly
+
+Completed in this pass:
+
+- added `internal/manifests/`
+- added `denmark/factors/`
+- moved the app toward normalized factor CSVs instead of raw DST table logic
+- added first public wave beyond the older eight-factor framing:
+  - population
+  - turnout
+  - immigration share
+  - population density
+  - unemployment
+- kept `2026` partial instead of faking full factor coverage
+
+Still open:
+
+- lock the correct divorce source
+- decide how to represent urban/rural classification honestly in a correlation-first public UI
+- add the Wave 2 housing / commute / household batch
+
+---
+
+## Phase 7 — International Data Mapping
+
+Status: later
+
+Goal:
+Test whether Danish Politics Data is really a local one-off or the first instance of a wider tool family.
+
+Tasks:
+
+- Identify which countries have municipality-level or equivalent local election data that is public enough to work with
+- Identify which countries also expose compatible structural data:
+  - income
+  - education
+  - welfare
+  - crime
+  - housing
+  - age structure
+- Note where geography, election systems, and administrative units make direct comparison unrealistic
+- Separate:
+  - countries with real expansion potential
+  - countries with partial data only
+  - countries where the idea breaks on missing public infrastructure
+- Keep this as a research map first, not a rollout promise
+
+Question underneath:
+
+Is this a Danish tool, or the first solved case of a broader public-data pattern reader?
+
+---
+
+## Phase 8 — Internal Research Model
+
+Status: later
+
+Goal:
+Build a stricter internal version of the tool for Dennis's own research where the system does not optimize for public-facing language first.
+
+Principle:
+
+The public tool still needs careful wording, trust cues, and readable summaries.
+The internal model should care less about packaging and more about raw structural reading.
+
+Possible characteristics:
+
+- more factor combinations
+- rougher outputs
+- less UI explanation
+- faster comparison workflows
+- more willingness to expose intermediate states
+- less dependence on polished language
+
+Rule:
+
+Do not confuse the public instrument with the internal research engine.
+They can share data and logic without being the same product.
 
 ---
 

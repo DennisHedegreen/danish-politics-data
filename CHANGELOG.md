@@ -2,6 +2,61 @@
 
 ---
 
+## 2026-03-30 — Normalized public factor layer and first 20-factor architecture pass
+
+- Added a normalized municipality-safe public factor layer in `denmark/factors/`.
+- Added `internal/manifests/` and `internal/raw/` as the beginning of the internal/public split.
+- Rebuilt `fetch_dst.py` so it now writes factor outputs and an ingest manifest instead of acting only as a small election-table fetcher.
+- The app now reads from normalized factor CSVs for the public factor layer instead of relying directly on raw DST table logic.
+- Added the first new public wave beyond the older 8-factor frame:
+  - population
+  - turnout
+  - immigration share
+  - population density
+  - unemployment
+- Extended `cars` to `2026` through the refreshed population bridge.
+- Kept `2026` explicitly partial instead of pretending all factors are ready.
+- Added a factor-contract test file for the new normalized outputs.
+- Did **not** force `Divorces` through this pass: the current local `SKI125` slice is not a trustworthy municipality-total source, so the factor stays unavailable until the source path is fixed.
+
+Reason:
+The tool needed a cleaner public data contract. The old model mixed raw DST tables and app logic too tightly. This pass starts the split properly while making `2026` more usable without lowering the honesty bar.
+
+---
+
+## 2026-03-30 — Year-aware factor and party availability in Explore
+
+- Explore now asks for the election year first and only then shows the factors that are actually usable for that year.
+- Party selection is now year-aware too, so the picker only shows parties present in the selected election year.
+- The year-aware party filter now excludes legacy zero-share rows, so parties like `E. Klaus Riskær Pedersen` do not leak into years where the local DST layer only contains placeholder zeroes.
+- `All parties` is now the default starting state in Explore instead of preloading a single party as if that were the neutral baseline.
+- If the user turns `All parties` off and ends up with zero selected parties, the app now stays in a neutral incomplete-selection state and explains why the analysis cannot run.
+- If a year has vote data but not yet a usable municipality factor layer, the app now says that directly instead of offering dead combinations.
+- The main CTA is disabled when the selected year has no usable factor layer yet.
+- Added simpler party pill-picks so the smaller year-specific party set is selected the same way as the factor layer.
+- When the user changes election year in manual party mode, newly relevant parties are now added into the selection instead of appearing as silent unselected omissions.
+
+Reason:
+2026 is now in the tool as a real municipality vote-share bridge, but the wider factor layer has not fully caught up. The UI should reflect actual availability instead of inviting the user into combinations that cannot work.
+
+---
+
+## 2026-03-30 — 2026 municipality bridge from the official VALG export
+
+- Added `fetch_valg_2026.py` to aggregate the official `data.valg.dk` polling-area fine-count files into municipality CSVs.
+- Added dedicated 2026 bridge outputs:
+  - `fv2026_party_share_by_municipality.csv`
+  - `fv2026_votes_by_municipality.csv`
+  - `fv2026_manifest.json`
+- Updated the app to read the separate 2026 bridge layer on top of the existing DST municipality data instead of pretending 2026 is already a normal Statistikbanken year.
+- Kept national trends honest: national historical data still stops at `2022`, while municipality vote share can now extend to `2026`.
+- Changed the default Explore year back to `2022` so the tool does not silently drop users into a partially refreshed 2026 factor layer.
+
+Reason:
+The priority was to get the 2026 election into the public tool tonight without flattening source status or pretending the entire municipality indicator stack had already caught up.
+
+---
+
 ## 2026-03-26 — Mobile structure pass for dense views
 
 - Explore single-result extremes now use tabs instead of side-by-side tables.

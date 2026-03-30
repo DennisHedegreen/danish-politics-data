@@ -1,0 +1,203 @@
+{
+  "run_type": "standard_dst_refresh",
+  "started_at": "2026-03-30T02:03:42Z",
+  "storage_policy": "normalized_public_outputs_only",
+  "tables": {
+    "FVKOM": {
+      "rows": 25245,
+      "columns": [
+        "VALRES",
+        "OMRÅDE",
+        "TID",
+        "INDHOLD"
+      ],
+      "saved_raw": true
+    },
+    "FVPANDEL": {
+      "rows": 9500,
+      "columns": [
+        "VALRES",
+        "OMRÅDE",
+        "TID",
+        "INDHOLD"
+      ],
+      "saved_raw": true
+    },
+    "FOLK1AM": {
+      "rows": 5565,
+      "columns": [
+        "OMRÅDE",
+        "KØN",
+        "ALDER",
+        "TID",
+        "INDHOLD"
+      ],
+      "saved_raw": false
+    },
+    "ARE207": {
+      "rows": 2100,
+      "columns": [
+        "OMRÅDE",
+        "TID",
+        "INDHOLD"
+      ],
+      "saved_raw": false
+    },
+    "FOLK1E": {
+      "rows": 45990,
+      "columns": [
+        "OMRÅDE",
+        "KØN",
+        "ALDER",
+        "HERKOMST",
+        "TID",
+        "INDHOLD"
+      ],
+      "saved_raw": false
+    },
+    "AUP02": {
+      "rows": 26208,
+      "columns": [
+        "OMRÅDE",
+        "ALDER",
+        "KØN",
+        "TID",
+        "INDHOLD"
+      ],
+      "saved_raw": false
+    },
+    "INDKP101": {
+      "rows": 4180,
+      "columns": [
+        "OMRÅDE",
+        "ENHED",
+        "KOEN",
+        "INDKOMSTTYPE",
+        "TID",
+        "INDHOLD"
+      ],
+      "saved_raw": true,
+      "source_mode": "local_legacy",
+      "path": "denmark/socioeconomic/indkp101_income_by_municipality.csv"
+    },
+    "AUK01": {
+      "rows": 8892,
+      "columns": [
+        "OMRÅDE",
+        "YDELSESTYPE",
+        "KØN",
+        "ALDER",
+        "TID",
+        "INDHOLD"
+      ],
+      "saved_raw": true,
+      "source_mode": "local_legacy",
+      "path": "denmark/socioeconomic/auk01_social_assistance.csv"
+    },
+    "STRAF11": {
+      "rows": 8056,
+      "columns": [
+        "OMRÅDE",
+        "OVERTRÆD",
+        "TID",
+        "INDHOLD"
+      ],
+      "saved_raw": true,
+      "source_mode": "local_legacy",
+      "path": "denmark/socioeconomic/straf11_crime_by_municipality.csv"
+    },
+    "BIL707": {
+      "rows": 2340,
+      "columns": [
+        "OMRÅDE",
+        "BILTYPE",
+        "TID",
+        "INDHOLD"
+      ],
+      "saved_raw": true,
+      "source_mode": "local_legacy",
+      "path": "denmark/socioeconomic/bil707_cars_by_municipality.csv"
+    },
+    "LBESK69": {
+      "rows": 8307,
+      "columns": [
+        "TAL",
+        "BOPKOM",
+        "KØN",
+        "TID",
+        "INDHOLD"
+      ],
+      "saved_raw": true,
+      "source_mode": "local_legacy",
+      "path": "denmark/socioeconomic/lbesk69_employees_by_municipality.csv"
+    }
+  },
+  "factors": {
+    "population.csv": {
+      "rows": 588,
+      "municipalities": 98,
+      "years": 6
+    },
+    "income.csv": {
+      "rows": 3724,
+      "municipalities": 98,
+      "years": 38
+    },
+    "education.csv": {
+      "rows": 490,
+      "municipalities": 98,
+      "years": 5
+    },
+    "age65_pct.csv": {
+      "rows": 490,
+      "municipalities": 98,
+      "years": 5
+    },
+    "turnout_pct.csv": {
+      "rows": 490,
+      "municipalities": 98,
+      "years": 5
+    },
+    "welfare_per_1000.csv": {
+      "rows": 490,
+      "municipalities": 98,
+      "years": 5
+    },
+    "crime_per_1000.csv": {
+      "rows": 490,
+      "municipalities": 98,
+      "years": 5
+    },
+    "cars_per_1000.csv": {
+      "rows": 588,
+      "municipalities": 98,
+      "years": 6
+    },
+    "employment_per_1000.csv": {
+      "rows": 490,
+      "municipalities": 98,
+      "years": 5
+    },
+    "immigration_share_pct.csv": {
+      "rows": 588,
+      "municipalities": 98,
+      "years": 6
+    },
+    "population_density.csv": {
+      "rows": 588,
+      "municipalities": 98,
+      "years": 6
+    },
+    "unemployment_pct.csv": {
+      "rows": 1764,
+      "municipalities": 98,
+      "years": 18
+    }
+  },
+  "notes": [
+    "Divorces were not rebuilt in this pass because the current local SKI125 extract is not a municipality-total slice. The public app should therefore keep hiding the factor until a correct total-source path is locked.",
+    "Urban/rural municipality grouping remains queued and is not emitted by the standard DST refresh yet because the current public correlation layer is numeric and Class A refreshes should not accumulate extra reference raw."
+  ],
+  "completed_at": "2026-03-30T02:04:24Z",
+  "public_factor_dir": "denmark/factors"
+}
