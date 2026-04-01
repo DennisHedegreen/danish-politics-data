@@ -15,6 +15,7 @@ Current public factors include:
 - population
 - education
 - income
+- average commute distance
 - employment
 - welfare
 - crime
@@ -24,10 +25,65 @@ Current public factors include:
 - immigration share
 - population density
 - unemployment
+- owner-occupied housing share
+- detached-house dwelling share
+- one-person household share
 
-`Divorces` remains in the system conceptually, but the public factor is currently withheld until the correct municipality-total source path is locked. Municipality vote share runs from `2007` to `2026`, with `2026` bridged from the official `VALG` export before the familiar Statistikbanken municipality tables catch up. The tool computes the Pearson correlation across all 98 Danish municipalities and tells you whether a pattern exists — and how strong it is.
+Municipality vote share runs from `2007` to `2026`, with `2026` bridged from the official `VALG` export before the familiar Statistikbanken municipality tables catch up. The tool computes the Pearson correlation across all 98 Danish municipalities and tells you whether a pattern exists — and how strong it is.
 
 **It surfaces patterns. It does not explain them.**
+
+---
+
+## Current public state
+
+Live now:
+
+- municipality vote share `2007–2026`
+- national vote trends `1953–2022`
+- normalized municipality-safe public factor layer in `denmark/factors/`
+- year-aware factor availability in the app
+- public-safe provenance manifests in `provenance/`
+
+Wave 2 is now partially live, but honestly partial:
+
+- `Avg. commute distance (km)` via `AFSTB4`
+- `Owner-occupied occupied dwellings (%)` via `BOL101`
+- `Detached/farmhouse occupied dwellings (%)` via `BOL103`
+- `Occupied dwellings with 1 person (%)` via `BOL103`
+
+The housing layer starts in `2010`. `BOL101` currently skips `2021–2022` because DST keeps those years closed due to source issues in BBR. The app does not backfill or pretend those years exist.
+
+---
+
+## Public / private boundary
+
+Public on GitHub:
+
+- normalized factor outputs in `denmark/factors/`
+- municipality-safe election outputs in `denmark/folketing/`
+- public-safe ingest manifests in `provenance/`
+- fetch/build scripts
+- methodology / roadmap / changelog
+
+Kept local/private:
+
+- finer-resolution `2026` election raw inputs
+- temporary bridge staging
+- anything in `internal/raw/` beyond documented public-safe notes
+
+This repo is meant to be reproducible at the municipality-safe public layer, not at every private staging step behind it.
+
+---
+
+## Intentionally withheld
+
+- `Divorces`
+  The current local `SKI125` slice is not a trustworthy municipality-total public factor path.
+- urban/rural classification as a numeric correlation factor
+  Useful internally, but still too blunt for the public correlation layer.
+
+If a factor is not honest enough, it does not enter the public UI.
 
 ---
 
@@ -64,7 +120,6 @@ python fetch_valg_2026.py
 | Social assistance recipients | Danmarks Statistik | AUK01 | CC 4.0 BY |
 | Reported crimes | Danmarks Statistik | STRAF11 | CC 4.0 BY |
 | Passenger cars | Danmarks Statistik | BIL707 | CC 4.0 BY |
-| Divorces | Danmarks Statistik | SKI125 | CC 4.0 BY |
 | Full-time employed | Danmarks Statistik | LBESK69 | CC 4.0 BY |
 | Population | Danmarks Statistik | FOLK1AM + legacy FOLK1A bridge | CC 4.0 BY |
 | Higher education share | Danmarks Statistik | HFUDD11 | CC 4.0 BY |
@@ -72,6 +127,10 @@ python fetch_valg_2026.py
 | Immigration share | Danmarks Statistik | FOLK1E | CC 4.0 BY |
 | Population density | Danmarks Statistik | ARE207 + population bridge | CC 4.0 BY |
 | Unemployment rate | Danmarks Statistik | AUP02 | CC 4.0 BY |
+| Avg. commute distance | Danmarks Statistik | AFSTB4 | CC 4.0 BY |
+| Owner-occupied housing share | Danmarks Statistik | BOL101 | CC 4.0 BY |
+| Detached-house share | Danmarks Statistik | BOL103 | CC 4.0 BY |
+| One-person household share | Danmarks Statistik | BOL103 | CC 4.0 BY |
 
 All Danmarks Statistik data: **CC 4.0 BY — Danmarks Statistik, www.dst.dk**
 
@@ -107,6 +166,7 @@ app.py                          Main Streamlit application
 fetch_dst.py                    Builds the normalized public factor layer from DST sources
 fetch_valg_2026.py              Aggregates the official 2026 VALG export to municipality CSVs
 requirements.txt
+STATUS.md                       Short public-facing state and boundary note
 METHODOLOGY.md                  Scientific methodology, bias rules, limitations
 FLOW.md                         UI and logic flow documentation
 internal/

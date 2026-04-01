@@ -7,6 +7,7 @@ Rule:
 - the public app reads from here
 - raw DST pulls do not belong here
 - every file should already be normalized to the post-2007 municipality layer
+- missing years should stay missing; this layer must not fake continuity
 
 Typical columns:
 

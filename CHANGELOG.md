@@ -2,6 +2,36 @@
 
 ---
 
+## 2026-04-01 — Wave 2 factor batch and repo-front trust pass
+
+- Added a small Wave 2 public factor batch:
+  - average commute distance
+  - owner-occupied housing share
+  - detached-house dwelling share
+  - one-person household share
+- Rebuilt `fetch_dst.py` so the new factors are fetched directly from official DST tables and written into the normalized public factor layer:
+  - `AFSTB4`
+  - `BOL101`
+  - `BOL103`
+- Kept the new factor layer year-aware instead of flattening gaps:
+  - housing factors start in `2010`
+  - owner-occupied housing currently skips `2021–2022` because DST keeps those years closed in `BOL101`
+  - no fake `2026` extension was added
+- Tightened the public/private boundary:
+  - `.gitignore` now blocks `internal/raw/` staging by default except for the documented README stub
+  - repo docs now state more clearly that finer-resolution `2026` raw election inputs stay local
+- Added `STATUS.md` as a short public-facing state and boundary layer
+- Updated the repo front (`README.md`, `METHODOLOGY.md`, `FLOW.md`, `ROADMAP.md`) so GitHub reflects the current local reality instead of an older snapshot
+- Tightened the app’s public surface:
+  - added the new Wave 2 factors to Explore
+  - removed `Divorces` from the public factor picker while the source path remains untrustworthy
+  - corrected municipality profile cards so already-normalized per-1,000 factors are no longer divided by population a second time
+
+Reason:
+The repo had outgrown its public face. This pass brings the factor layer, UI, methodology, and GitHub front back into alignment while keeping the honesty bar intact.
+
+---
+
 ## 2026-03-30 — Normalized public factor layer and first 20-factor architecture pass
 
 - Added a normalized municipality-safe public factor layer in `denmark/factors/`.
@@ -245,6 +275,24 @@ Several phrases were removed or replaced because they went beyond what correlati
 - All correlation calculations are unchanged.
 - The underlying Pearson r values are identical.
 - No data was added or removed.
+
+---
+
+## 2026-03-30 — Embedded sidebar fix
+
+### What changed
+
+- The app now checks for `embedded=true` in the query string.
+- In embedded mode, Streamlit starts with the sidebar collapsed instead of expanded.
+
+### Why
+
+The new public TID landing page embeds Danish Politics Data inside an iframe.
+With the sidebar forced open, the embedded app could render with the sidebar overlaying the main
+content on smaller screens.
+
+The direct app should still behave like a full app.
+The embedded app should behave like an embed.
 
 ---
 

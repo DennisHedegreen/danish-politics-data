@@ -140,14 +140,17 @@ Still not honest enough for public release:
 6. Urban/rural classification as a numeric correlation factor
 7. Correct municipality-total divorces rebuild
 
-Wave 2 target factors:
+Wave 2 now partly landed:
 
 8. Average commute distance
 9. Share owner-occupied housing
 10. Share living in detached houses
+13. Single-person household share
+
+Still queued from the old Wave 2 list:
+
 11. Apartment share
 12. Students share
-13. Single-person household share
 
 Required before implementation for any new factor:
 
@@ -187,6 +190,7 @@ Tasks:
   - commute distance
   - owner-occupied housing
   - detached-house share
+  - one-person household share
 - note strong overlap if present
 - do not auto-remove factors just because they overlap
 

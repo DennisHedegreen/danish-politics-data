@@ -4,3 +4,9 @@ __pycache__/
 .venv/
 .streamlit/secrets.toml
 *.DS_Store
+*.tmp
+*.bak
+internal/raw/*
+!internal/raw/README.md
+internal/staging/
+internal/tmp/

@@ -204,32 +204,38 @@ METRIC_SHORT_LABELS = {
     "Population": "Population",
     "Education": "Higher edu. %",
     "Income": "Income",
+    "Commute distance": "Commute km",
     "Employment": "Employed / 1k",
     "Welfare": "Welfare / 1k",
     "Crime": "Crime / 1k",
     "Cars": "Cars / 1k",
-    "Divorces": "Divorces / 1k",
     "Age 65+": "Age 65+ %",
     "Turnout": "Turnout %",
     "Immigration share": "Immigration %",
     "Population density": "Population / km²",
     "Unemployment": "Unemployment %",
+    "Owner-occupied housing": "Owner-occ. %",
+    "Detached houses": "Detached %",
+    "One-person households": "1-person %",
 }
 
 METRIC_PHRASES = {
     "Population": "population size",
     "Education": "higher education share",
     "Income": "disposable income",
+    "Commute distance": "average commute distance",
     "Employment": "full-time employment",
     "Welfare": "social assistance use",
     "Crime": "reported crime",
     "Cars": "car ownership",
-    "Divorces": "divorce rate",
     "Age 65+": "share aged 65+",
     "Turnout": "voter turnout",
     "Immigration share": "immigration share",
     "Population density": "population density",
     "Unemployment": "unemployment rate",
+    "Owner-occupied housing": "owner-occupied housing share",
+    "Detached houses": "detached-house dwelling share",
+    "One-person households": "one-person household share",
 }
 
 
@@ -468,6 +474,10 @@ def load_divorces():
     return load_factor_file("divorces_per_1000.csv")
 
 @st.cache_data
+def load_commute_distance():
+    return load_factor_file("commute_distance_km.csv")
+
+@st.cache_data
 def load_education():
     return load_factor_file("education.csv")
 
@@ -495,6 +505,18 @@ def load_population_density():
 def load_unemployment():
     return load_factor_file("unemployment_pct.csv")
 
+@st.cache_data
+def load_owner_occupied_housing():
+    return load_factor_file("owner_occupied_dwelling_share_pct.csv")
+
+@st.cache_data
+def load_detached_houses():
+    return load_factor_file("detached_house_dwelling_share_pct.csv")
+
+@st.cache_data
+def load_one_person_households():
+    return load_factor_file("one_person_household_share_pct.csv")
+
 mun           = load_municipal()
 nat           = load_national()
 pop_df        = load_population()
@@ -503,6 +525,7 @@ social_df     = load_social()
 crime_df      = load_crime()
 cars_df       = load_cars()
 divorce_df    = load_divorces()
+commute_df    = load_commute_distance()
 employment_df = load_employment()
 education_df  = load_education()
 age65_df      = load_age65()
@@ -510,6 +533,9 @@ turnout_df    = load_turnout()
 immigration_df = load_immigration()
 density_df    = load_population_density()
 unemployment_df = load_unemployment()
+owner_occupied_df = load_owner_occupied_housing()
+detached_houses_df = load_detached_houses()
+one_person_households_df = load_one_person_households()
 
 # ── sidebar ───────────────────────────────────────────────────────────────────
 
@@ -541,16 +567,19 @@ METRIC_OPTIONS = [
     ("Population",  "Population (reference count)",               "population",   "Do larger municipalities vote differently?"),
     ("Education",   "Higher education share (%)",                "education",   "Do more educated municipalities vote differently?"),
     ("Income",      "Avg. disposable income (DKK per person)",   "income",      "Do wealthier municipalities vote differently?"),
+    ("Commute distance", "Avg. commute distance (km)",           "commute",     "Do long-commute municipalities vote differently?"),
     ("Employment",  "Full-time employees per 1,000 residents",   "employment",  "Do areas with higher employment vote differently?"),
     ("Welfare",     "Social assistance recipients per 1,000 residents", "social", "Do areas with more people on benefits vote differently?"),
     ("Crime",       "Reported crimes per 1,000 residents",       "crime",       "Is there a link between crime rates and voting patterns?"),
     ("Cars",        "Passenger cars per 1,000 residents",        "cars",        "Do car-heavy (rural) areas vote differently from urban ones?"),
-    ("Divorces",    "Divorces per 1,000 residents",              "divorces",    "Does social stability correlate with voting behaviour?"),
     ("Age 65+",     "Share aged 65+ (%)",                        "age65",       "Do older municipalities vote differently?"),
     ("Turnout",     "Votes cast as share of voters (%)",         "turnout",     "Do high-turnout municipalities vote differently?"),
     ("Immigration share", "Residents without Danish origin (%)", "immigration", "Do municipalities with larger immigrant and descendant shares vote differently?"),
     ("Population density", "Residents per km²",                  "density",     "Does dense settlement correlate with voting behaviour?"),
     ("Unemployment", "Full-time unemployment rate (%)",          "unemployment","Do municipalities with higher unemployment vote differently?"),
+    ("Owner-occupied housing", "Owner-occupied occupied dwellings (%)", "owner_occupied", "Do municipalities with more owner-occupied housing vote differently?"),
+    ("Detached houses", "Detached/farmhouse occupied dwellings (%)", "detached_houses", "Do municipalities with more detached-house living patterns vote differently?"),
+    ("One-person households", "Occupied dwellings with 1 person (%)", "one_person_households", "Do municipalities with more one-person households vote differently?"),
 ]
 ALL_METRIC_KEYS    = [m[0] for m in METRIC_OPTIONS]
 ALL_PARTY_NAMES    = sorted(mun["party"].unique())
@@ -558,7 +587,7 @@ ALL_ELECTION_YEARS = sorted(mun["year"].unique())
 DEFAULT_EXPLORE_YEAR = 2022 if 2022 in ALL_ELECTION_YEARS else ALL_ELECTION_YEARS[-1]
 MUNICIPAL_ELECTION_RANGE_LABEL = f"{ALL_ELECTION_YEARS[0]}–{ALL_ELECTION_YEARS[-1]}"
 
-def get_metric_series(metric_key, year, _population, _income, _social, _crime, _cars, _divorces, _employment, _education, _age65, _turnout, _immigration, _density, _unemployment):
+def get_metric_series(metric_key, year, _population, _income, _social, _crime, _cars, _divorces, _commute, _employment, _education, _age65, _turnout, _immigration, _density, _unemployment, _owner_occupied, _detached_houses, _one_person_households):
     if metric_key == "population":
         df = _population[_population["year"] == year][["municipality", "population"]].copy()
         df["metric"] = df["population"]
@@ -573,6 +602,10 @@ def get_metric_series(metric_key, year, _population, _income, _social, _crime, _
         return df[["municipality","metric"]]
     elif metric_key == "income":
         df = _income[_income["year"] == year][["municipality","value"]].copy()
+        df["metric"] = df["value"]
+        return df[["municipality","metric"]]
+    elif metric_key == "commute":
+        df = _commute[_commute["year"] == year][["municipality","value"]].copy()
         df["metric"] = df["value"]
         return df[["municipality","metric"]]
     elif metric_key == "employment":
@@ -611,6 +644,18 @@ def get_metric_series(metric_key, year, _population, _income, _social, _crime, _
         df = _unemployment[_unemployment["year"] == year][["municipality","value"]].copy()
         df["metric"] = df["value"]
         return df[["municipality","metric"]]
+    elif metric_key == "owner_occupied":
+        df = _owner_occupied[_owner_occupied["year"] == year][["municipality","value"]].copy()
+        df["metric"] = df["value"]
+        return df[["municipality","metric"]]
+    elif metric_key == "detached_houses":
+        df = _detached_houses[_detached_houses["year"] == year][["municipality","value"]].copy()
+        df["metric"] = df["value"]
+        return df[["municipality","metric"]]
+    elif metric_key == "one_person_households":
+        df = _one_person_households[_one_person_households["year"] == year][["municipality","value"]].copy()
+        df["metric"] = df["value"]
+        return df[["municipality","metric"]]
     return pd.DataFrame()
 
 
@@ -627,7 +672,7 @@ def metric_has_usable_year_data(metric_frame):
     return True
 
 
-def available_metric_keys_for_year(year, _population, _income, _social, _crime, _cars, _divorces, _employment, _education, _age65, _turnout, _immigration, _density, _unemployment):
+def available_metric_keys_for_year(year, _population, _income, _social, _crime, _cars, _divorces, _commute, _employment, _education, _age65, _turnout, _immigration, _density, _unemployment, _owner_occupied, _detached_houses, _one_person_households):
     available = []
     for metric_name, _, metric_key, _ in METRIC_OPTIONS:
         metric_frame = get_metric_series(
@@ -639,6 +684,7 @@ def available_metric_keys_for_year(year, _population, _income, _social, _crime, 
             _crime,
             _cars,
             _divorces,
+            _commute,
             _employment,
             _education,
             _age65,
@@ -646,6 +692,9 @@ def available_metric_keys_for_year(year, _population, _income, _social, _crime, 
             _immigration,
             _density,
             _unemployment,
+            _owner_occupied,
+            _detached_houses,
+            _one_person_households,
         )
         if metric_has_usable_year_data(metric_frame):
             available.append(metric_name)
@@ -662,14 +711,14 @@ def available_parties_for_year(year, municipal_df):
     return sorted(active["party"].unique())
 
 @st.cache_data
-def precompute_all_correlations(_mun, _pop_df, _income_df, _social_df, _crime_df, _cars_df, _divorce_df, _employment_df, _education_df, _age65_df, _turnout_df, _immigration_df, _density_df, _unemployment_df):
+def precompute_all_correlations(_mun, _pop_df, _income_df, _social_df, _crime_df, _cars_df, _divorce_df, _commute_df, _employment_df, _education_df, _age65_df, _turnout_df, _immigration_df, _density_df, _unemployment_df, _owner_occupied_df, _detached_houses_df, _one_person_households_df):
     rows = []
     for year in sorted(_mun["year"].unique()):
         for party in sorted(_mun["party"].unique()):
             votes = _mun[(_mun["year"] == year) & (_mun["party"] == party)][["municipality","share"]]
             if votes.empty: continue
             for m_name, m_label, m_key, _ in METRIC_OPTIONS:
-                ms = get_metric_series(m_key, year, _pop_df, _income_df, _social_df, _crime_df, _cars_df, _divorce_df, _employment_df, _education_df, _age65_df, _turnout_df, _immigration_df, _density_df, _unemployment_df)
+                ms = get_metric_series(m_key, year, _pop_df, _income_df, _social_df, _crime_df, _cars_df, _divorce_df, _commute_df, _employment_df, _education_df, _age65_df, _turnout_df, _immigration_df, _density_df, _unemployment_df, _owner_occupied_df, _detached_houses_df, _one_person_households_df)
                 if ms.empty or "municipality" not in ms.columns: continue
                 merged = votes.merge(ms, on="municipality", how="inner")
                 computed = compute_correlation_result(merged, factor=m_name, party=party, year=year, mode="precompute")
@@ -678,7 +727,7 @@ def precompute_all_correlations(_mun, _pop_df, _income_df, _social_df, _crime_df
                 rows.append({"year": year, "party": party, "factor": m_name, "label": m_label, "r": computed["r"]})
     return pd.DataFrame(rows)
 
-all_corr_df = precompute_all_correlations(mun, pop_df, income_df, social_df, crime_df, cars_df, divorce_df, employment_df, education_df, age65_df, turnout_df, immigration_df, density_df, unemployment_df)
+all_corr_df = precompute_all_correlations(mun, pop_df, income_df, social_df, crime_df, cars_df, divorce_df, commute_df, employment_df, education_df, age65_df, turnout_df, immigration_df, density_df, unemployment_df, owner_occupied_df, detached_houses_df, one_person_households_df)
 
 if page == "Explore":
 
@@ -725,6 +774,7 @@ if page == "Explore":
         crime_df,
         cars_df,
         divorce_df,
+        commute_df,
         employment_df,
         education_df,
         age65_df,
@@ -732,6 +782,9 @@ if page == "Explore":
         immigration_df,
         density_df,
         unemployment_df,
+        owner_occupied_df,
+        detached_houses_df,
+        one_person_households_df,
     )
     parties_for_year = available_parties_for_year(cx_year, mun)
 
@@ -874,7 +927,7 @@ if page == "Explore":
             for mk in s_metric_keys:
                 m_info  = next(m for m in METRIC_OPTIONS if m[0] == mk)
                 m_label = m_info[1]
-                ms = get_metric_series(m_info[2], s_year, pop_df, income_df, social_df, crime_df, cars_df, divorce_df, employment_df, education_df, age65_df, turnout_df, immigration_df, density_df, unemployment_df)
+                ms = get_metric_series(m_info[2], s_year, pop_df, income_df, social_df, crime_df, cars_df, divorce_df, commute_df, employment_df, education_df, age65_df, turnout_df, immigration_df, density_df, unemployment_df, owner_occupied_df, detached_houses_df, one_person_households_df)
                 if ms.empty or "municipality" not in ms.columns:
                     continue
                 merged  = votes.merge(ms, on="municipality", how="inner")
@@ -1072,7 +1125,7 @@ Positive r = both go up together. Negative r = they go in opposite directions.
                 factor_series = {}
                 for mk in s_metric_keys:
                     m_info = next(m for m in METRIC_OPTIONS if m[0] == mk)
-                    ms = get_metric_series(m_info[2], s_year, pop_df, income_df, social_df, crime_df, cars_df, divorce_df, employment_df, education_df, age65_df, turnout_df, immigration_df, density_df, unemployment_df)
+                    ms = get_metric_series(m_info[2], s_year, pop_df, income_df, social_df, crime_df, cars_df, divorce_df, commute_df, employment_df, education_df, age65_df, turnout_df, immigration_df, density_df, unemployment_df, owner_occupied_df, detached_houses_df, one_person_households_df)
                     if not ms.empty:
                         factor_series[mk] = ms.set_index("municipality")["metric"]
                 rank_order = {r["factor"]: i for i, r in enumerate(ranked)}
@@ -1276,7 +1329,7 @@ elif page == "Compare municipalities":
     st.markdown(
         "<p style='font-size:0.82rem;color:#6a6a7a;margin-bottom:0.8rem;'>"
         "Current municipality profile using the most recent available data for each metric. "
-        "Years may differ by metric. Welfare, crime, cars and divorces are shown per 1,000 residents."
+        "Years may differ by metric. Per-1,000 and percentage factors are shown directly from the normalized public factor layer."
         "</p>", unsafe_allow_html=True
     )
 
@@ -1299,68 +1352,88 @@ elif page == "Compare municipalities":
 
     pop_value_a, pop_year = latest_val(pop_df, mun_a, val_col="population")
     pop_value_b, _ = latest_val(pop_df, mun_b, val_col="population")
-    if pop_value_a and pop_value_b:
+    if pop_value_a is not None and pop_value_b is not None:
         profile_rows.append({"Metric": "Population", mun_a: f"{pop_value_a:,.0f}", mun_b: f"{pop_value_b:,.0f}", "Year": pop_year})
 
     edu_a, yr = latest_val(education_df, mun_a)
     edu_b, _  = latest_val(education_df, mun_b)
-    if edu_a and edu_b:
+    if edu_a is not None and edu_b is not None:
         profile_rows.append({"Metric": "Higher education (%)", mun_a: f"{edu_a:.1f}%", mun_b: f"{edu_b:.1f}%", "Year": yr})
 
     inc_a, yr = latest_val(income_df, mun_a)
     inc_b, _  = latest_val(income_df, mun_b)
-    if inc_a and inc_b:
+    if inc_a is not None and inc_b is not None:
         profile_rows.append({"Metric": "Avg. disposable income (DKK)", mun_a: f"{inc_a:,.0f}", mun_b: f"{inc_b:,.0f}", "Year": yr})
+
+    commute_a, yr = latest_val(commute_df, mun_a)
+    commute_b, _  = latest_val(commute_df, mun_b)
+    if commute_a is not None and commute_b is not None:
+        profile_rows.append({"Metric": "Avg. commute distance (km)", mun_a: f"{commute_a:.1f}", mun_b: f"{commute_b:.1f}", "Year": yr})
 
     emp_a, yr = latest_val(employment_df, mun_a)
     emp_b, _  = latest_val(employment_df, mun_b)
-    if emp_a and emp_b and pop_a and pop_b:
-        profile_rows.append({"Metric": "Full-time employees per 1,000", mun_a: f"{emp_a/pop_a*1000:.1f}", mun_b: f"{emp_b/pop_b*1000:.1f}", "Year": yr})
+    if emp_a is not None and emp_b is not None:
+        profile_rows.append({"Metric": "Full-time employees per 1,000", mun_a: f"{emp_a:.1f}", mun_b: f"{emp_b:.1f}", "Year": yr})
 
     soc_a, yr = latest_val(social_df, mun_a)
     soc_b, _  = latest_val(social_df, mun_b)
-    if soc_a and soc_b and pop_a and pop_b:
-        profile_rows.append({"Metric": "Welfare recipients per 1,000", mun_a: f"{soc_a/pop_a*1000:.1f}", mun_b: f"{soc_b/pop_b*1000:.1f}", "Year": yr})
+    if soc_a is not None and soc_b is not None:
+        profile_rows.append({"Metric": "Welfare recipients per 1,000", mun_a: f"{soc_a:.1f}", mun_b: f"{soc_b:.1f}", "Year": yr})
 
     cr_a, yr = latest_val(crime_df, mun_a)
     cr_b, _  = latest_val(crime_df, mun_b)
-    if cr_a and cr_b and pop_a and pop_b:
-        profile_rows.append({"Metric": "Reported crimes per 1,000", mun_a: f"{cr_a/pop_a*1000:.1f}", mun_b: f"{cr_b/pop_b*1000:.1f}", "Year": yr})
+    if cr_a is not None and cr_b is not None:
+        profile_rows.append({"Metric": "Reported crimes per 1,000", mun_a: f"{cr_a:.1f}", mun_b: f"{cr_b:.1f}", "Year": yr})
 
     car_a, yr = latest_val(cars_df, mun_a)
     car_b, _  = latest_val(cars_df, mun_b)
-    if car_a and car_b and pop_a and pop_b:
-        profile_rows.append({"Metric": "Passenger cars per 1,000", mun_a: f"{car_a/pop_a*1000:.1f}", mun_b: f"{car_b/pop_b*1000:.1f}", "Year": yr})
+    if car_a is not None and car_b is not None:
+        profile_rows.append({"Metric": "Passenger cars per 1,000", mun_a: f"{car_a:.1f}", mun_b: f"{car_b:.1f}", "Year": yr})
 
     div_a, yr = latest_val(divorce_df, mun_a)
     div_b, _  = latest_val(divorce_df, mun_b)
-    if div_a and div_b and pop_a and pop_b:
-        profile_rows.append({"Metric": "Divorces per 1,000", mun_a: f"{div_a/pop_a*1000:.1f}", mun_b: f"{div_b/pop_b*1000:.1f}", "Year": yr})
+    if div_a is not None and div_b is not None:
+        profile_rows.append({"Metric": "Divorces per 1,000", mun_a: f"{div_a:.1f}", mun_b: f"{div_b:.1f}", "Year": yr})
 
     age_a, yr = latest_val(age65_df, mun_a)
     age_b, _  = latest_val(age65_df, mun_b)
-    if age_a and age_b:
+    if age_a is not None and age_b is not None:
         profile_rows.append({"Metric": "Aged 65+ (%)", mun_a: f"{age_a:.1f}%", mun_b: f"{age_b:.1f}%", "Year": yr})
 
     turnout_a, yr = latest_val(turnout_df, mun_a)
     turnout_b, _ = latest_val(turnout_df, mun_b)
-    if turnout_a and turnout_b:
+    if turnout_a is not None and turnout_b is not None:
         profile_rows.append({"Metric": "Turnout (%)", mun_a: f"{turnout_a:.1f}%", mun_b: f"{turnout_b:.1f}%", "Year": yr})
 
     imm_a, yr = latest_val(immigration_df, mun_a)
     imm_b, _ = latest_val(immigration_df, mun_b)
-    if imm_a and imm_b:
+    if imm_a is not None and imm_b is not None:
         profile_rows.append({"Metric": "Residents without Danish origin (%)", mun_a: f"{imm_a:.1f}%", mun_b: f"{imm_b:.1f}%", "Year": yr})
 
     dens_a, yr = latest_val(density_df, mun_a)
     dens_b, _ = latest_val(density_df, mun_b)
-    if dens_a and dens_b:
+    if dens_a is not None and dens_b is not None:
         profile_rows.append({"Metric": "Population density (per km²)", mun_a: f"{dens_a:.1f}", mun_b: f"{dens_b:.1f}", "Year": yr})
 
     unemp_a, yr = latest_val(unemployment_df, mun_a)
     unemp_b, _ = latest_val(unemployment_df, mun_b)
-    if unemp_a and unemp_b:
+    if unemp_a is not None and unemp_b is not None:
         profile_rows.append({"Metric": "Unemployment (%)", mun_a: f"{unemp_a:.1f}%", mun_b: f"{unemp_b:.1f}%", "Year": yr})
+
+    owner_a, yr = latest_val(owner_occupied_df, mun_a)
+    owner_b, _ = latest_val(owner_occupied_df, mun_b)
+    if owner_a is not None and owner_b is not None:
+        profile_rows.append({"Metric": "Owner-occupied dwellings (%)", mun_a: f"{owner_a:.1f}%", mun_b: f"{owner_b:.1f}%", "Year": yr})
+
+    detached_a, yr = latest_val(detached_houses_df, mun_a)
+    detached_b, _ = latest_val(detached_houses_df, mun_b)
+    if detached_a is not None and detached_b is not None:
+        profile_rows.append({"Metric": "Detached/farmhouse dwellings (%)", mun_a: f"{detached_a:.1f}%", mun_b: f"{detached_b:.1f}%", "Year": yr})
+
+    one_person_a, yr = latest_val(one_person_households_df, mun_a)
+    one_person_b, _ = latest_val(one_person_households_df, mun_b)
+    if one_person_a is not None and one_person_b is not None:
+        profile_rows.append({"Metric": "One-person households (%)", mun_a: f"{one_person_a:.1f}%", mun_b: f"{one_person_b:.1f}%", "Year": yr})
 
     if profile_rows:
         render_profile_cards(profile_rows, mun_a, mun_b)
@@ -1443,6 +1516,8 @@ Built by [Hedegreen Research](https://hedegreenresearch.com).
 - Correlation ≠ causation.
 - Some municipality indicators use the most recent available year for that metric, so years can differ in profile-style views.
  - The 2026 municipality vote-share layer is currently bridged from the official `VALG` export before the familiar Statistikbanken municipality tables catch up.
+ - Wave 2 commute and housing factors are year-aware by design. Housing coverage starts in `2010`, and owner-occupied housing currently skips `2021–2022` because DST keeps those years closed in `BOL101`.
+ - `Divorces` stays withheld from the public factor layer until the municipality-total source path is trustworthy.
     """)
     st.subheader("Data sources")
     st.markdown("""
@@ -1453,10 +1528,12 @@ Built by [Hedegreen Research](https://hedegreenresearch.com).
 <div class="source-item"><strong>AUK01</strong> — Social assistance recipients per municipality, 2007–present. Danmarks Statistik</div>
 <div class="source-item"><strong>STRAF11</strong> — Reported crimes per municipality, 2007–present. Danmarks Statistik</div>
 <div class="source-item"><strong>BIL707</strong> — Passenger cars per municipality, 2007–present. Danmarks Statistik</div>
-<div class="source-item"><strong>SKI125</strong> — Divorces per municipality, 2007–present. Danmarks Statistik</div>
 <div class="source-item"><strong>FOLK1AM</strong> — Population per municipality. Danmarks Statistik</div>
 <div class="source-item"><strong>FVKOM</strong> — Municipality turnout can be derived from valid + invalid votes versus number of voters. Danmarks Statistik</div>
 <div class="source-item"><strong>FOLK1E</strong> — Immigration share at municipality level via herkomst categories. Danmarks Statistik</div>
 <div class="source-item"><strong>ARE207</strong> — Area per municipality for density calculations. Danmarks Statistik</div>
 <div class="source-item"><strong>AUP02</strong> — Unemployment rate per municipality. Danmarks Statistik</div>
+<div class="source-item"><strong>AFSTB4</strong> — Average commute distance by municipality (employed total, ultimo November). Danmarks Statistik</div>
+<div class="source-item"><strong>BOL101</strong> — Owner-occupied share within occupied dwellings. Danmarks Statistik</div>
+<div class="source-item"><strong>BOL103</strong> — Detached-house share and one-person-household share within occupied dwellings. Danmarks Statistik</div>
     """, unsafe_allow_html=True)

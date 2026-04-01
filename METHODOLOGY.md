@@ -28,13 +28,16 @@ The tool surfaces patterns. It does not explain them.
 | Social assistance recipients | Danmarks Statistik | 2007–present | AUK01 |
 | Reported crimes | Danmarks Statistik | 2007–present | STRAF11 |
 | Passenger cars | Danmarks Statistik | 2007–present | BIL707 |
-| Divorces | Danmarks Statistik | 2007–present | SKI125 |
 | Full-time employed per municipality | Danmarks Statistik | 2007–2022 (election quarters) | LBESK69 |
 | Population (reference layer) | Danmarks Statistik | 2008–2026 bridge | FOLK1A + FOLK1AM |
 | Voter turnout | Danmarks Statistik | 2007–2022 | FVKOM-derived |
 | Immigration share | Danmarks Statistik | 2007–2026 bridge | FOLK1E |
 | Population density | Danmarks Statistik | 2007–2026 bridge | ARE207 + population bridge |
 | Unemployment rate | Danmarks Statistik | 2007–2024 | AUP02 |
+| Average commute distance | Danmarks Statistik | 2008–2024 | AFSTB4 |
+| Owner-occupied housing share | Danmarks Statistik | 2010–2020, 2023–2025 | BOL101 |
+| Detached-house dwelling share | Danmarks Statistik | 2010–2025 | BOL103 |
+| One-person household share | Danmarks Statistik | 2010–2025 | BOL103 |
 
 All data from Danmarks Statistik is published under **CC 4.0 BY**.
 Attribution: Danmarks Statistik, www.dst.dk
@@ -94,6 +97,49 @@ using `ARE207` for municipal area and the election-year population bridge layer 
 
 Unemployment uses `AUP02`, which is already expressed as full-time unemployment in percent of the labour force. To keep the public layer honest, the current normalized factor uses annual means for completed years only. Partial `2026` monthly data is therefore not exposed yet.
 
+### Commute distance
+
+Commute distance uses `AFSTB4` as the average commute distance in kilometers for `Employed total` and `Total`.
+
+This factor is used as-is at the municipality-year level. It does not use a population denominator.
+
+### Owner-occupied housing
+
+Owner-occupied housing uses `BOL101` and is defined as:
+
+`occupied dwellings classified as occupied by the owner / all occupied dwellings in the selected regular housing categories * 100`
+
+The denominator is the occupied dwelling layer, not persons.
+
+### Detached-house dwelling share
+
+Detached-house share uses `BOL103` and is defined as:
+
+`occupied dwellings classified as detached houses/farmhouses / all occupied dwellings in the selected regular housing categories * 100`
+
+The denominator is the occupied dwelling layer, not persons.
+
+### One-person household share
+
+One-person household share also uses `BOL103` and is defined as:
+
+`occupied dwellings with household size = 1 person / all occupied dwellings in the selected regular housing categories * 100`
+
+This is therefore a household-structure measure in the occupied-dwelling layer, not a claim about all individuals.
+
+### Housing denominator note
+
+The housing/household factors use the regular occupied dwelling categories:
+
+- detached houses/farmhouses
+- terraced / linked / semi-detached houses
+- multi-dwelling houses
+- student hostels
+- residential buildings for communities
+- other
+
+Holiday houses are excluded.
+
 ### Geographic coverage
 
 - **Municipality level**: 98 municipalities (kommuner) as defined after the 2007 kommunalreform.
@@ -138,7 +184,8 @@ These rules apply to how the tool presents findings:
 
 - **Pre-2007 municipal data**: The 2007 kommunalreform merged 271 municipalities into 98. Municipal-level socioeconomic data before 2007 is not comparable on a like-for-like basis and is therefore not included.
 - **2026 election**: The March 24, 2026 election is newer than the municipality-level Statistikbanken tables currently used by this public tool. Official 2026 results can exist earlier in higher-resolution official systems such as the Danish Election Database or the `VALG` public data export before they are folded into the familiar municipality tables.
-- **Partial 2026 factor coverage**: `2026` is still a bridge year. Population, cars, immigration share and population density can be surfaced honestly earlier than factors such as turnout, unemployment, welfare, crime, employment or divorces.
+- **Partial 2026 factor coverage**: `2026` is still a bridge year. Population, cars, immigration share and population density can be surfaced honestly earlier than factors such as turnout, unemployment, welfare, crime, employment, commute and the housing/household layer.
+- **Housing-layer year gaps**: The housing factors start in `2010`. `BOL101` currently does not expose `2021` or `2022`, because those years are closed by DST due to source issues in BBR.
 - **Correlation ≠ causation**: Repeated here because it cannot be overstated.
 - **Ecological fallacy**: Municipal-level patterns do not tell you how individual voters behave. A municipality with high income voting less for the Social Democrats does not mean that wealthy individuals vote against them.
 - **Missing data**: Not all metrics are available for all years or all municipalities. Small municipalities may have suppressed values in some datasets.
@@ -151,12 +198,8 @@ These rules apply to how the tool presents findings:
 |---|---|---|
 | Urban/rural classification | Danmarks Statistik | Useful for controlling for urbanisation |
 | Correct municipality-total divorce factor | Danmarks Statistik | Current local SKI125 slice is not a trustworthy total source |
-| Owner-occupied housing share | Danmarks Statistik | Planned Wave 2 factor |
-| Detached-house share | Danmarks Statistik | Planned Wave 2 factor |
 | Apartment share | Danmarks Statistik | Planned Wave 2 factor |
-| Commute distance / time | Danmarks Statistik | Planned Wave 2 factor |
 | Students share | Danmarks Statistik | Planned Wave 2 factor |
-| Single-person household share | Danmarks Statistik | Planned Wave 2 factor |
 
 ---
 

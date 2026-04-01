@@ -55,6 +55,21 @@ IMMIGRATION_REFERENCE = {
     2026: "2026Q1",
 }
 
+REGULAR_OCCUPIED_DWELLING_TYPES = {
+    "Detached houses/farmhouses",
+    "Terraced, linked or semi-detached houses",
+    "Multi-dwelling houses",
+    "Student hostels",
+    "Residential buildings for communities",
+    "Other",
+}
+OCCUPIED_DWELLINGS = "Dwellings with registered population"
+OWNER_OCCUPIED = "Occupied by the owner"
+DETACHED_HOUSES = "Detached houses/farmhouses"
+ONE_PERSON_HOUSEHOLD = "1 person"
+TOTAL_GENDER = "Total"
+EMPLOYED_TOTAL = "Employed total"
+
 TABLE_SPECS = {
     "FVKOM": {
         "path": FOLKETING_DIR / "fvkom_votes_by_municipality.csv",
@@ -100,6 +115,32 @@ TABLE_SPECS = {
             {"code": "OMRÅDE", "values": ["*"]},
             {"code": "ALDER", "values": ["TOT"]},
             {"code": "KØN", "values": ["TOT"]},
+            {"code": "Tid", "values": ["*"]},
+        ],
+    },
+    "AFSTB4": {
+        "variables": [
+            {"code": "BOPOMR", "values": ["*"]},
+            {"code": "SOCIO", "values": ["02"]},
+            {"code": "KØN", "values": ["TOT"]},
+            {"code": "Tid", "values": ["*"]},
+        ],
+    },
+    "BOL101": {
+        "variables": [
+            {"code": "OMRÅDE", "values": ["*"]},
+            {"code": "BEBO", "values": ["1000"]},
+            {"code": "ANVENDELSE", "values": ["125", "130", "140", "150", "160", "570"]},
+            {"code": "UDLFORH", "values": ["EJ", "LEJ", "UOPL"]},
+            {"code": "Tid", "values": ["*"]},
+        ],
+    },
+    "BOL103": {
+        "variables": [
+            {"code": "AMT", "values": ["*"]},
+            {"code": "BEBO", "values": ["1000"]},
+            {"code": "ANVENDELSE", "values": ["125", "130", "140", "150", "160", "570"]},
+            {"code": "HUSSTØR", "values": ["*"]},
             {"code": "Tid", "values": ["*"]},
         ],
     },
@@ -377,6 +418,65 @@ def build_unemployment_factor(allowed: set[str], unemployment_raw: pd.DataFrame)
     return annual[["OMRÅDE", "year", "value"]].rename(columns={"OMRÅDE": "municipality"})
 
 
+def build_commute_factor(allowed: set[str], commute_raw: pd.DataFrame) -> pd.DataFrame:
+    df = keep_allowed(commute_raw, "BOPOMR", allowed)
+    df = df[(df["SOCIO"] == EMPLOYED_TOTAL) & (df["KØN"] == TOTAL_GENDER)].copy()
+    df["year"] = df["TID"].astype(int)
+    df["value"] = to_numeric(df["INDHOLD"]).round(2)
+    return df[["BOPOMR", "year", "value"]].rename(columns={"BOPOMR": "municipality"})
+
+
+def build_owner_occupied_housing_factor(allowed: set[str], housing_raw: pd.DataFrame) -> pd.DataFrame:
+    df = keep_allowed(housing_raw, "OMRÅDE", allowed)
+    df = df[
+        (df["BEBO"] == OCCUPIED_DWELLINGS)
+        & df["ANVENDELSE"].isin(REGULAR_OCCUPIED_DWELLING_TYPES)
+    ].copy()
+    df["year"] = df["TID"].astype(int)
+    df["count"] = to_numeric(df["INDHOLD"])
+    grouped = df.groupby(["OMRÅDE", "year", "UDLFORH"], as_index=False)["count"].sum()
+    totals = grouped.groupby(["OMRÅDE", "year"], as_index=False)["count"].sum().rename(columns={"count": "total_count"})
+    owners = grouped[grouped["UDLFORH"] == OWNER_OCCUPIED][["OMRÅDE", "year", "count"]].rename(columns={"count": "owner_count"})
+    merged = totals.merge(owners, on=["OMRÅDE", "year"], how="left")
+    merged["owner_count"] = merged["owner_count"].fillna(0)
+    merged["value"] = (merged["owner_count"] / merged["total_count"] * 100).round(2)
+    return merged[["OMRÅDE", "year", "value"]].rename(columns={"OMRÅDE": "municipality"})
+
+
+def build_detached_house_factor(allowed: set[str], housing_shape_raw: pd.DataFrame) -> pd.DataFrame:
+    df = keep_allowed(housing_shape_raw, "AMT", allowed)
+    df = df[
+        (df["BEBO"] == OCCUPIED_DWELLINGS)
+        & df["ANVENDELSE"].isin(REGULAR_OCCUPIED_DWELLING_TYPES)
+    ].copy()
+    df["year"] = df["TID"].astype(int)
+    df["count"] = to_numeric(df["INDHOLD"])
+    grouped = df.groupby(["AMT", "year", "ANVENDELSE"], as_index=False)["count"].sum()
+    totals = grouped.groupby(["AMT", "year"], as_index=False)["count"].sum().rename(columns={"count": "total_count"})
+    detached = grouped[grouped["ANVENDELSE"] == DETACHED_HOUSES][["AMT", "year", "count"]].rename(columns={"count": "detached_count"})
+    merged = totals.merge(detached, on=["AMT", "year"], how="left")
+    merged["detached_count"] = merged["detached_count"].fillna(0)
+    merged["value"] = (merged["detached_count"] / merged["total_count"] * 100).round(2)
+    return merged[["AMT", "year", "value"]].rename(columns={"AMT": "municipality"})
+
+
+def build_one_person_household_factor(allowed: set[str], housing_shape_raw: pd.DataFrame) -> pd.DataFrame:
+    df = keep_allowed(housing_shape_raw, "AMT", allowed)
+    df = df[
+        (df["BEBO"] == OCCUPIED_DWELLINGS)
+        & df["ANVENDELSE"].isin(REGULAR_OCCUPIED_DWELLING_TYPES)
+    ].copy()
+    df["year"] = df["TID"].astype(int)
+    df["count"] = to_numeric(df["INDHOLD"])
+    grouped = df.groupby(["AMT", "year", "HUSSTØR"], as_index=False)["count"].sum()
+    totals = grouped.groupby(["AMT", "year"], as_index=False)["count"].sum().rename(columns={"count": "total_count"})
+    single = grouped[grouped["HUSSTØR"] == ONE_PERSON_HOUSEHOLD][["AMT", "year", "count"]].rename(columns={"count": "single_count"})
+    merged = totals.merge(single, on=["AMT", "year"], how="left")
+    merged["single_count"] = merged["single_count"].fillna(0)
+    merged["value"] = (merged["single_count"] / merged["total_count"] * 100).round(2)
+    return merged[["AMT", "year", "value"]].rename(columns={"AMT": "municipality"})
+
+
 def build_urban_group_factor() -> pd.DataFrame:
     text = fetch_text(KOMMUNEGRUPPER_CSV_URL)
     df = pd.read_csv(StringIO(text), sep=";", encoding="utf-8-sig")
@@ -497,8 +597,39 @@ def main() -> int:
         ["year", "municipality"],
     )
 
+    commute = build_commute_factor(allowed, fetched["AFSTB4"])
+    manifest["factors"]["commute_distance_km.csv"] = write_factor(
+        FACTOR_DIR / "commute_distance_km.csv",
+        commute,
+        ["year", "municipality"],
+    )
+
+    owner_occupied = build_owner_occupied_housing_factor(allowed, fetched["BOL101"])
+    manifest["factors"]["owner_occupied_dwelling_share_pct.csv"] = write_factor(
+        FACTOR_DIR / "owner_occupied_dwelling_share_pct.csv",
+        owner_occupied,
+        ["year", "municipality"],
+    )
+
+    detached = build_detached_house_factor(allowed, fetched["BOL103"])
+    manifest["factors"]["detached_house_dwelling_share_pct.csv"] = write_factor(
+        FACTOR_DIR / "detached_house_dwelling_share_pct.csv",
+        detached,
+        ["year", "municipality"],
+    )
+
+    one_person = build_one_person_household_factor(allowed, fetched["BOL103"])
+    manifest["factors"]["one_person_household_share_pct.csv"] = write_factor(
+        FACTOR_DIR / "one_person_household_share_pct.csv",
+        one_person,
+        ["year", "municipality"],
+    )
+
     manifest["notes"].append(
         "Urban/rural municipality grouping remains queued and is not emitted by the standard DST refresh yet because the current public correlation layer is numeric and Class A refreshes should not accumulate extra reference raw."
+    )
+    manifest["notes"].append(
+        "Wave 2 factors now include commute distance and three housing/household shares. These remain year-aware. BOL101 is missing 2021 and 2022 because DST currently keeps those years closed due to BBR source errors."
     )
 
     manifest["completed_at"] = utc_now()

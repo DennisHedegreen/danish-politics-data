@@ -10,8 +10,8 @@ Three inputs → one or two action buttons → correlation compute → routing �
 
 | Widget | Type | Values |
 |---|---|---|
-| Faktorer | Pills (multi-select) | Education, Income, Employment, Welfare, Crime, Cars, Divorces, Age 65+ |
-| Valgår | Select slider | 2007, 2011, 2015, 2019, 2022 (municipal data) |
+| Faktorer | Pills (multi-select) | Year-aware public factor layer (population, education, income, commute, employment, welfare, crime, cars, age 65+, turnout, immigration share, density, unemployment, owner-occupied housing, detached houses, one-person households) |
+| Valgår | Select slider | 2007, 2011, 2015, 2019, 2022, 2026 |
 | Partier | Multi-select + "All parties" toggle | All parties in Folketing data |
 
 ---
@@ -28,7 +28,7 @@ Three inputs → one or two action buttons → correlation compute → routing �
 ## Layer 3: COMPUTE
 
 `precompute_all_correlations()` runs at startup and caches all ~600 combinations:
-- 5 election years × 8 metrics × ~20 parties = Pearson r per cell
+- year-aware election years × currently available public factors × active parties = Pearson r per cell
 - Cached with `@st.cache_data` — never recomputed during a session
 - Used by both "Show me" (live filter) and "Surprise me" (random pick)
 
@@ -78,8 +78,9 @@ Each finding box contains:
 
 - **Streamlit widget keys cannot be modified after instantiation.** "Surprise me" uses a `_surprise_pending` pattern: stores target values under temp keys, copies to widget keys at the top of the next run before any widget renders.
 - **Gap = abs(more_avg − less_avg)** — computed after direction assignment to guarantee consistency with displayed numbers.
-- **Per-capita metrics** (welfare, crime, cars, divorces, employment) are normalised using population from the quarter closest to the election year.
+- **Per-capita metrics** (welfare, crime, cars, employment) are normalised using population from the quarter closest to the election year.
 - **Education and Age 65+** are already percentage values — no per-capita normalisation needed.
+- **Wave 2 commute + housing factors** stay year-aware. Missing years are hidden instead of backfilled.
 
 ---
 
