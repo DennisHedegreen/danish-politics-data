@@ -179,10 +179,10 @@ If the source path is wrong, the factor should disappear rather than survive as 
 
 ## Phase 5 — Overlap And Redundancy
 
-Status: blocked on Phase 4
+Status: first pass completed
 
 Goal:
-Measure overlap between the three new factors once they exist.
+Measure overlap between the first Wave 2 factors once they exist together.
 
 Tasks:
 
@@ -197,6 +197,14 @@ Tasks:
 Purpose:
 
 Avoid pretending three factors say three unrelated things if they mostly track the same structural geography.
+
+Current first-pass result:
+
+- `owner-occupied housing` and `detached-house share` overlap strongly
+- `commute distance` tracks detached-house geography clearly, but less tightly
+- `one-person household share` remains different enough to justify keeping
+
+See `FACTOR-OVERLAP.md`.
 
 ---
 

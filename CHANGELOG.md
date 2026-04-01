@@ -32,6 +32,21 @@ The repo had outgrown its public face. This pass brings the factor layer, UI, me
 
 ---
 
+## 2026-04-01 — Wave 2 overlap pass
+
+- Added `FACTOR-OVERLAP.md` as the first direct overlap reading across the new Wave 2 factors
+- Measured pairwise overlap both on election-year overlap and on all common municipality-years
+- Locked the first interpretation:
+  - owner-occupied housing and detached-house share overlap strongly
+  - commute distance clearly tracks the same broad geography, but less tightly
+  - one-person household share remains different enough to justify keeping
+- Updated the roadmap so Phase 5 is no longer blocked and now points to the written overlap note
+
+Reason:
+Wave 2 should not just add more factors. It should also admit when several factors are partly saying the same thing.
+
+---
+
 ## 2026-03-30 — Normalized public factor layer and first 20-factor architecture pass
 
 - Added a normalized municipality-safe public factor layer in `denmark/factors/`.
