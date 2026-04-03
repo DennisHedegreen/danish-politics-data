@@ -1,91 +1,16 @@
 # Danish Politics Data
 
-A data exploration tool for journalists and researchers. Cross-references Danish Folketing election results with socioeconomic municipal data.
+A public reading surface for Danish Folketing results at municipality level, paired with the current municipality-safe Danish factor layer.
 
-Built by [Hedegreen Research](https://hedegreenresearch.com).
+This repo is the Denmark-only public surface rebuilt from a shared internal source tree maintained by Hedegreen Research. It keeps the newer app shell while exposing only Denmark data, Denmark methodology, and Denmark-specific public notes.
 
----
+## Current scope
 
-## What it does
-
-Pick an election year, one or more parties, and one or more municipality factors from the current public factor layer. That layer now reads from normalized municipality-safe factor files instead of mixing raw DST tables directly into the app.
-
-Current public factors include:
-
-- population
-- education
-- income
-- average commute distance
-- employment
-- welfare
-- crime
-- cars
-- age 65+
-- turnout
-- immigration share
-- population density
-- unemployment
-- owner-occupied housing share
-- detached-house dwelling share
-- one-person household share
-
-Municipality vote share runs from `2007` to `2026`, with `2026` bridged from the official `VALG` export before the familiar Statistikbanken municipality tables catch up. The tool computes the Pearson correlation across all 98 Danish municipalities and tells you whether a pattern exists — and how strong it is.
-
-**It surfaces patterns. It does not explain them.**
-
----
-
-## Current public state
-
-Live now:
-
-- municipality vote share `2007–2026`
-- national vote trends `1953–2022`
-- normalized municipality-safe public factor layer in `denmark/factors/`
-- year-aware factor availability in the app
-- public-safe provenance manifests in `provenance/`
-
-Wave 2 is now partially live, but honestly partial:
-
-- `Avg. commute distance (km)` via `AFSTB4`
-- `Owner-occupied occupied dwellings (%)` via `BOL101`
-- `Detached/farmhouse occupied dwellings (%)` via `BOL103`
-- `Occupied dwellings with 1 person (%)` via `BOL103`
-
-The housing layer starts in `2010`. `BOL101` currently skips `2021–2022` because DST keeps those years closed due to source issues in BBR. The app does not backfill or pretend those years exist.
-
----
-
-## Public / private boundary
-
-Public on GitHub:
-
-- normalized factor outputs in `denmark/factors/`
-- municipality-safe election outputs in `denmark/folketing/`
-- public-safe ingest manifests in `provenance/`
-- fetch/build scripts
-- methodology / roadmap / changelog
-
-Kept local/private:
-
-- finer-resolution `2026` election raw inputs
-- temporary bridge staging
-- anything in `internal/raw/` beyond documented public-safe notes
-
-This repo is meant to be reproducible at the municipality-safe public layer, not at every private staging step behind it.
-
----
-
-## Intentionally withheld
-
-- `Divorces`
-  The current local `SKI125` slice is not a trustworthy municipality-total public factor path.
-- urban/rural classification as a numeric correlation factor
-  Useful internally, but still too blunt for the public correlation layer.
-
-If a factor is not honest enough, it does not enter the public UI.
-
----
+- Election type: `Folketing`
+- Municipality election years: `2007`, `2011`, `2015`, `2019`, `2022`, `2026`
+- National trend years: `1953–2022`
+- Public geography: `municipality`
+- Current public factors: `population`, `education`, `income`, `commute distance`, `employment`, `welfare`, `crime`, `cars`, `age65`, `turnout`, `immigration share`, `population density`, `unemployment`, `owner-occupied housing`, `detached houses`, `one-person households`
 
 ## Run locally
 
@@ -94,86 +19,52 @@ pip install -r requirements.txt
 streamlit run app.py
 ```
 
-To rebuild the normalized public factor layer:
+To rebuild the Denmark public factor layer:
 
 ```bash
 python fetch_dst.py
 ```
 
-To fetch and aggregate the official 2026 election bridge from `data.valg.dk`:
+To rebuild the official `2026` municipality bridge:
 
 ```bash
 python fetch_valg_2026.py
 ```
 
----
+## What this repo is not
+
+- Not a broader politics product beyond the declared Denmark scope
+- Not a prediction model
+- Not an explanation engine
+- Not a person-level voter model
+- Not a claim that the `2026` bridge is already a normal Statistikbanken year
+
+## Intentionally missing
+
+- `Divorces` until the municipality-total source path is trustworthy
+- `Urban/rural classification` as a public numeric factor
+- Any false backfilling of the closed `BOL101` years
 
 ## Data sources
 
-| Dataset | Source | Table | Licence |
-|---|---|---|---|
-| Party vote share per municipality, 2007–2022 | Danmarks Statistik | FVPANDEL | CC 4.0 BY |
-| Party vote share per municipality, 2026 bridge | Official `VALG` public export aggregated from polling-area level | JSON over SFTP | Official public source |
-| Raw votes per municipality | Danmarks Statistik | FVKOM | CC 4.0 BY |
-| National votes 1953–2022 | Straubinger/folketingsvalg | — | — |
-| Avg. disposable income | Danmarks Statistik | INDKP101 | CC 4.0 BY |
-| Social assistance recipients | Danmarks Statistik | AUK01 | CC 4.0 BY |
-| Reported crimes | Danmarks Statistik | STRAF11 | CC 4.0 BY |
-| Passenger cars | Danmarks Statistik | BIL707 | CC 4.0 BY |
-| Full-time employed | Danmarks Statistik | LBESK69 | CC 4.0 BY |
-| Population | Danmarks Statistik | FOLK1AM + legacy FOLK1A bridge | CC 4.0 BY |
-| Higher education share | Danmarks Statistik | HFUDD11 | CC 4.0 BY |
-| Voter turnout | Danmarks Statistik | FVKOM-derived | CC 4.0 BY |
-| Immigration share | Danmarks Statistik | FOLK1E | CC 4.0 BY |
-| Population density | Danmarks Statistik | ARE207 + population bridge | CC 4.0 BY |
-| Unemployment rate | Danmarks Statistik | AUP02 | CC 4.0 BY |
-| Avg. commute distance | Danmarks Statistik | AFSTB4 | CC 4.0 BY |
-| Owner-occupied housing share | Danmarks Statistik | BOL101 | CC 4.0 BY |
-| Detached-house share | Danmarks Statistik | BOL103 | CC 4.0 BY |
-| One-person household share | Danmarks Statistik | BOL103 | CC 4.0 BY |
+- Election source: `Danmarks Statistik + official VALG 2026 bridge`
+- Secondary source: `Straubinger/folketingsvalg`
+- Statistics source: `Danmarks Statistik`
 
-All Danmarks Statistik data: **CC 4.0 BY — Danmarks Statistik, www.dst.dk**
+## Repo structure
 
----
-
-## What this tool is not
-
-- Not a prediction model
-- Not an argument for any political position
-- Correlation ≠ causation. A pattern in the data does not mean one variable causes the other.
-- Municipal-level patterns do not describe individual voters (ecological fallacy)
-
-See [METHODOLOGY.md](METHODOLOGY.md) for the full scientific methodology, bias rules, and known limitations.
-
----
-
-## Pages
-
-| Page | What it shows |
-|---|---|
-| Explore | Guided discovery: pick factor + year + party, find patterns |
-| Compare municipalities | Side-by-side socioeconomic and voting profile for two municipalities |
-| By Municipality | All data for one municipality across all election years |
-| National trends | Vote share trends 1953–2022 at national level |
-| About & sources | Data sources, methodology, licence |
-
----
-
-## Project structure
-
+```text
+app.py               Single-country public wrapper
+engine_app.py        Shared app shell extracted from the internal engine
+correlation_utils.py Shared correlation helpers
+country_registry.py  Single-country registry for this public surface
+fetch_dst.py         Denmark factor rebuild script
+fetch_valg_2026.py   Denmark 2026 election bridge builder
+denmark/               Country data pack and scope notes
+provenance/          Public-safe manifests copied from the internal engine
+tests/               Country-surface smoke tests
 ```
-app.py                          Main Streamlit application
-fetch_dst.py                    Builds the normalized public factor layer from DST sources
-fetch_valg_2026.py              Aggregates the official 2026 VALG export to municipality CSVs
-requirements.txt
-STATUS.md                       Short public-facing state and boundary note
-METHODOLOGY.md                  Scientific methodology, bias rules, limitations
-FLOW.md                         UI and logic flow documentation
-internal/
-  raw/                          Reserved for bridge / special-source raw inputs
-provenance/                     Public-safe ingest manifests and provenance notes
-denmark/
-  factors/                      Normalized public municipality factor layer
-  folketing/                    Election results (FVPANDEL, 2026 VALG bridge, FVKOM, Straubinger)
-  socioeconomic/                Municipal socioeconomic data (income, crime, etc.)
-```
+
+## Source of truth
+
+This repo is a public country surface. The shared internal source tree still exists separately and remains the source of truth for shell changes and future extraction work.
