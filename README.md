@@ -4,6 +4,11 @@ A public reading surface for Danish Folketing results at municipality level, pai
 
 This repo is the Denmark-only public surface rebuilt from a shared internal source tree maintained by Hedegreen Research. It keeps the newer app shell while exposing only Denmark data, Denmark methodology, and Denmark-specific public notes.
 
+## Public door
+
+- TID door: `https://hedegreenresearch.com/tid/danish-politics-data/`
+- GitHub repo: `https://github.com/DennisHedegreen/danish-politics-data`
+
 ## Current scope
 
 - Election type: `Folketing`
