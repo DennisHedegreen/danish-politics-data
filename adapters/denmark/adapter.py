@@ -478,7 +478,13 @@ def render(country_config, selected_country_label, runtime_context):
 
         st.markdown('<div class="step-label" style="margin-top:1rem;">Step 2 — What factors are available for that year?</div>', unsafe_allow_html=True)
         if available_metric_keys:
-            cx_metric_keys = st.pills("factors", available_metric_keys, key="cx_factors", selection_mode="multi", label_visibility="collapsed")
+            cx_metric_keys = st.multiselect(
+                "Factors",
+                available_metric_keys,
+                key="cx_factors",
+                label_visibility="collapsed",
+                placeholder="Select one or more factors",
+            )
         else:
             cx_metric_keys = []
             st.markdown("<p style='font-size:0.74rem;color:#8888a0;margin-bottom:0;'>No usable municipality factor layer is available for that election year yet.</p>", unsafe_allow_html=True)
@@ -489,13 +495,13 @@ def render(country_config, selected_country_label, runtime_context):
             cx_parties = parties_for_year
             st.session_state["cx_parties"] = parties_for_year
         else:
-            cx_parties = st.pills(
-                "parties",
+            cx_parties = st.multiselect(
+                "Parties",
                 parties_for_year,
                 key="cx_parties",
-                selection_mode="multi",
                 format_func=lambda p: format_party_name(p, metadata=country_config.party_metadata, mode=party_name_mode, compact=True, include_code=True),
                 label_visibility="collapsed",
+                placeholder="Select one or more parties",
             )
             if not cx_parties:
                 st.markdown("<p style='font-size:0.74rem;color:#8888a0;margin-top:0.45rem;margin-bottom:0;'>No party is currently selected. Municipality-level pattern analysis requires at least one party selection.</p>", unsafe_allow_html=True)
