@@ -314,7 +314,25 @@ def available_parties_for_year(year, municipal_df):
 
 
 @st.cache_data
-def precompute_all_correlations(_mun, _pop_df, _income_df, _social_df, _crime_df, _cars_df, _divorce_df, _commute_df, _employment_df, _education_df, _age65_df, _turnout_df, _immigration_df, _density_df, _unemployment_df, _owner_occupied_df, _detached_houses_df, _one_person_households_df):
+def precompute_all_correlations():
+    _mun = load_municipal()
+    _pop_df = load_population()
+    _income_df = load_factor_file("income.csv")
+    _social_df = load_factor_file("welfare_per_1000.csv")
+    _crime_df = load_factor_file("crime_per_1000.csv")
+    _cars_df = load_factor_file("cars_per_1000.csv")
+    _divorce_df = load_factor_file("divorces_per_1000.csv")
+    _commute_df = load_factor_file("commute_distance_km.csv")
+    _employment_df = load_factor_file("employment_per_1000.csv")
+    _education_df = load_factor_file("education.csv")
+    _age65_df = load_factor_file("age65_pct.csv")
+    _turnout_df = load_factor_file("turnout_pct.csv")
+    _immigration_df = load_factor_file("immigration_share_pct.csv")
+    _density_df = load_factor_file("population_density.csv")
+    _unemployment_df = load_factor_file("unemployment_pct.csv")
+    _owner_occupied_df = load_factor_file("owner_occupied_dwelling_share_pct.csv")
+    _detached_houses_df = load_factor_file("detached_house_dwelling_share_pct.csv")
+    _one_person_households_df = load_factor_file("one_person_household_share_pct.csv")
     rows = []
     for year in sorted(_mun["year"].unique()):
         for party in sorted(_mun["party"].unique()):
@@ -381,7 +399,6 @@ def render(country_config, selected_country_label, runtime_context):
     all_election_years = sorted(mun["year"].unique())
     default_explore_year = 2022 if 2022 in all_election_years else all_election_years[-1]
     municipal_election_range_label = f"{all_election_years[0]}–{all_election_years[-1]}"
-    all_corr_df = precompute_all_correlations(mun, pop_df, income_df, social_df, crime_df, cars_df, divorce_df, commute_df, employment_df, education_df, age65_df, turnout_df, immigration_df, density_df, unemployment_df, owner_occupied_df, detached_houses_df, one_person_households_df)
 
     with st.sidebar:
         st.markdown('<div class="hr-wordmark">HEDEGREEN RESEARCH<span class="dot"> ●</span></div>', unsafe_allow_html=True)
@@ -505,6 +522,7 @@ def render(country_config, selected_country_label, runtime_context):
                 st.session_state["explore_show"] = True
         with col_surprise:
             if st.button("Surprise me →", use_container_width=True):
+                all_corr_df = precompute_all_correlations()
                 interesting = all_corr_df[all_corr_df["r"].abs() >= 0.40]
                 if not interesting.empty:
                     mode = random.choice(["single", "multi_factor", "multi_party"])
