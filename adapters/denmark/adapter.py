@@ -420,21 +420,73 @@ def render(country_config, selected_country_label, runtime_context):
     if page == "Explore":
         if "cx_factors" not in st.session_state:
             st.session_state["cx_factors"] = ["Income"]
+        if "cx_factors_widget" not in st.session_state:
+            st.session_state["cx_factors_widget"] = st.session_state.get("cx_factors", ["Income"])
         if "cx_year" not in st.session_state:
             st.session_state["cx_year"] = default_explore_year
         if "cx_all_parties" not in st.session_state:
             st.session_state["cx_all_parties"] = True
         if "cx_parties" not in st.session_state:
             st.session_state["cx_parties"] = []
+        if "cx_parties_widget" not in st.session_state:
+            st.session_state["cx_parties_widget"] = st.session_state.get("cx_parties", [])
         if "cx_year_seen" not in st.session_state:
             st.session_state["cx_year_seen"] = st.session_state["cx_year"]
         if "cx_parties_seen_for_year" not in st.session_state:
             st.session_state["cx_parties_seen_for_year"] = []
 
+        def _available_metric_keys(selected_year):
+            return available_metric_keys_for_year(
+                selected_year, pop_df, income_df, social_df, crime_df, cars_df, divorce_df, commute_df, employment_df, education_df, age65_df, turnout_df, immigration_df, density_df, unemployment_df, owner_occupied_df, detached_houses_df, one_person_households_df,
+            )
+
+        def _available_parties(selected_year):
+            return available_parties_for_year(selected_year, mun)
+
+        def _normalize_factor_widget_state(selected_year):
+            available = _available_metric_keys(selected_year)
+            selected = [m for m in st.session_state.get("cx_factors_widget", []) if m in available]
+            if available and not selected:
+                selected = [available[0]]
+            st.session_state["cx_factors_widget"] = selected
+            st.session_state["cx_factors"] = selected
+            return available
+
+        def _normalize_party_widget_state(selected_year):
+            parties = _available_parties(selected_year)
+            previous_year = st.session_state.get("cx_year_seen")
+            previous_parties = st.session_state.get("cx_parties_seen_for_year", [])
+            year_changed = previous_year != selected_year
+            selected = [p for p in st.session_state.get("cx_parties_widget", []) if p in parties]
+            if st.session_state.get("cx_all_parties"):
+                selected = parties
+            elif year_changed:
+                newly_available = [p for p in parties if p not in previous_parties]
+                if newly_available:
+                    selected = [
+                        party for party in parties
+                        if party in set(selected) | set(newly_available)
+                    ]
+            st.session_state["cx_parties_widget"] = selected
+            st.session_state["cx_parties"] = selected
+            st.session_state["cx_year_seen"] = selected_year
+            st.session_state["cx_parties_seen_for_year"] = parties
+            return parties
+
+        def _on_explore_year_change():
+            selected_year = st.session_state["cx_year"]
+            _normalize_factor_widget_state(selected_year)
+            _normalize_party_widget_state(selected_year)
+
+        def _on_explore_all_parties_change():
+            _normalize_party_widget_state(st.session_state["cx_year"])
+
         if st.session_state.get("_surprise_pending"):
             st.session_state["cx_year"] = st.session_state.pop("_surprise_year")
-            st.session_state["cx_factors"] = st.session_state.pop("_surprise_factors")
-            st.session_state["cx_parties"] = st.session_state.pop("_surprise_parties")
+            st.session_state["cx_factors_widget"] = st.session_state.pop("_surprise_factors")
+            st.session_state["cx_parties_widget"] = st.session_state.pop("_surprise_parties")
+            st.session_state["cx_factors"] = st.session_state["cx_factors_widget"]
+            st.session_state["cx_parties"] = st.session_state["cx_parties_widget"]
             st.session_state["cx_all_parties"] = False
             del st.session_state["_surprise_pending"]
 
@@ -447,64 +499,49 @@ def render(country_config, selected_country_label, runtime_context):
         )
 
         st.markdown('<div class="step-label">Step 1 — Which election year?</div>', unsafe_allow_html=True)
-        cx_year = st.select_slider("year", options=all_election_years, key="cx_year", label_visibility="collapsed")
+        cx_year = st.select_slider("year", options=all_election_years, key="cx_year", label_visibility="collapsed", on_change=_on_explore_year_change)
 
-        available_metric_keys = available_metric_keys_for_year(
-            cx_year, pop_df, income_df, social_df, crime_df, cars_df, divorce_df, commute_df, employment_df, education_df, age65_df, turnout_df, immigration_df, density_df, unemployment_df, owner_occupied_df, detached_houses_df, one_person_households_df,
-        )
-        parties_for_year = available_parties_for_year(cx_year, mun)
-
-        current_metric_selection = [m for m in st.session_state.get("cx_factors", []) if m in available_metric_keys]
-        if available_metric_keys and not current_metric_selection:
-            current_metric_selection = [available_metric_keys[0]]
-        st.session_state["cx_factors"] = current_metric_selection
-
-        previous_year = st.session_state.get("cx_year_seen")
-        previous_parties_for_year = st.session_state.get("cx_parties_seen_for_year", [])
-        year_changed = previous_year != cx_year
-        current_party_selection = [p for p in st.session_state.get("cx_parties", []) if p in parties_for_year]
-        if st.session_state.get("cx_all_parties"):
-            current_party_selection = parties_for_year
-        elif year_changed:
-            newly_available = [p for p in parties_for_year if p not in previous_parties_for_year]
-            if newly_available:
-                current_party_selection = [
-                    party for party in parties_for_year
-                    if party in set(current_party_selection) | set(newly_available)
-                ]
-        st.session_state["cx_parties"] = current_party_selection
-        st.session_state["cx_year_seen"] = cx_year
-        st.session_state["cx_parties_seen_for_year"] = parties_for_year
+        available_metric_keys = _available_metric_keys(cx_year)
+        parties_for_year = _available_parties(cx_year)
+        if st.session_state.get("cx_factors_widget") is None:
+            st.session_state["cx_factors_widget"] = []
+        if st.session_state.get("cx_parties_widget") is None:
+            st.session_state["cx_parties_widget"] = []
 
         st.markdown('<div class="step-label" style="margin-top:1rem;">Step 2 — What factors are available for that year?</div>', unsafe_allow_html=True)
         if available_metric_keys:
+            if not st.session_state.get("cx_factors_widget"):
+                st.session_state["cx_factors_widget"] = [available_metric_keys[0]]
             cx_metric_keys = st.multiselect(
                 "Factors",
                 available_metric_keys,
-                key="cx_factors",
+                key="cx_factors_widget",
                 label_visibility="collapsed",
                 placeholder="Select one or more factors",
             )
         else:
             cx_metric_keys = []
             st.markdown("<p style='font-size:0.74rem;color:#8888a0;margin-bottom:0;'>No usable municipality factor layer is available for that election year yet.</p>", unsafe_allow_html=True)
+        st.session_state["cx_factors"] = cx_metric_keys
 
         st.markdown('<div class="step-label" style="margin-top:1rem;">Step 3 — Pick a party</div>', unsafe_allow_html=True)
-        all_toggle = st.checkbox("All parties", key="cx_all_parties")
+        all_toggle = st.checkbox("All parties", key="cx_all_parties", on_change=_on_explore_all_parties_change)
         if all_toggle:
             cx_parties = parties_for_year
-            st.session_state["cx_parties"] = parties_for_year
         else:
             cx_parties = st.multiselect(
                 "Parties",
                 parties_for_year,
-                key="cx_parties",
+                key="cx_parties_widget",
                 format_func=lambda p: format_party_name(p, metadata=country_config.party_metadata, mode=party_name_mode, compact=True, include_code=True),
                 label_visibility="collapsed",
                 placeholder="Select one or more parties",
             )
             if not cx_parties:
                 st.markdown("<p style='font-size:0.74rem;color:#8888a0;margin-top:0.45rem;margin-bottom:0;'>No party is currently selected. Municipality-level pattern analysis requires at least one party selection.</p>", unsafe_allow_html=True)
+        st.session_state["cx_parties"] = cx_parties
+        st.session_state["cx_year_seen"] = cx_year
+        st.session_state["cx_parties_seen_for_year"] = parties_for_year
 
         st.markdown('<div class="step-label" style="margin-top:1rem;">Step 4 — Highlight a specific municipality? (optional)</div>', unsafe_allow_html=True)
         all_munis_explore = ["— none —"] + sorted(mun["municipality"].unique())
