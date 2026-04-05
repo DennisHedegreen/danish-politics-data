@@ -1,0 +1,1 @@
+"""Denmark adapter package."""

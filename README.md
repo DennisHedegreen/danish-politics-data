@@ -2,7 +2,7 @@
 
 A public reading surface for Danish Folketing results at municipality level, paired with the current municipality-safe Danish factor layer.
 
-This repo is the Denmark-only public surface rebuilt from a shared internal source tree maintained by Hedegreen Research. It keeps the newer app shell while exposing only Denmark data, Denmark methodology, and Denmark-specific public notes.
+This repo is the Denmark-only public surface rebuilt from the internal World-politics-data engine. It keeps the newer app shell while exposing only Denmark data, Denmark methodology, and Denmark-specific public notes.
 
 ## Public door
 
@@ -22,18 +22,6 @@ This repo is the Denmark-only public surface rebuilt from a shared internal sour
 ```bash
 pip install -r requirements.txt
 streamlit run app.py
-```
-
-To rebuild the Denmark public factor layer:
-
-```bash
-python fetch_dst.py
-```
-
-To rebuild the official `2026` municipality bridge:
-
-```bash
-python fetch_valg_2026.py
 ```
 
 ## What this repo is not
@@ -63,8 +51,6 @@ app.py               Single-country public wrapper
 engine_app.py        Shared app shell extracted from the internal engine
 correlation_utils.py Shared correlation helpers
 country_registry.py  Single-country registry for this public surface
-fetch_dst.py         Denmark factor rebuild script
-fetch_valg_2026.py   Denmark 2026 election bridge builder
 denmark/               Country data pack and scope notes
 provenance/          Public-safe manifests copied from the internal engine
 tests/               Country-surface smoke tests

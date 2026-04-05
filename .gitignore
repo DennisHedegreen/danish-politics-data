@@ -1,12 +1,5 @@
+.venv/
 __pycache__/
 *.pyc
-.env
-.venv/
-.streamlit/secrets.toml
-*.DS_Store
-*.tmp
-*.bak
-internal/raw/*
-!internal/raw/README.md
-internal/staging/
-internal/tmp/
+.pytest_cache/
+.DS_Store
