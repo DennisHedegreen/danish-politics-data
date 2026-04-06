@@ -7,6 +7,7 @@ This repo is the Denmark-only public surface rebuilt from the internal World-pol
 ## Public door
 
 - TID door: `https://hedegreenresearch.com/tid/danish-politics-data/`
+- Live app: `https://danish-politics-data-nrfnkgn3zsm4jmhamsxzay.streamlit.app/`
 - GitHub repo: `https://github.com/DennisHedegreen/danish-politics-data`
 
 ## Current scope
