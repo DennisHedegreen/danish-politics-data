@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import altair as alt
+import pandas as pd
 import streamlit as st
 
 
@@ -131,7 +132,7 @@ def render_bar_chart(df, label_col, value_col, tooltip_label=None, full_label_co
         color=alt.condition(alt.datum[value_col] >= 0, alt.value("#22d966"), alt.value("#3d8ef0")),
         tooltip=tooltip_fields,
     ).properties(height=max(220, len(chart_df) * 34))
-    st.altair_chart(chart, use_container_width=True)
+    st.altair_chart(chart, width="stretch")
 
 
 def render_national_trend_chart(df, year_col, party_col, share_col):
@@ -152,14 +153,25 @@ def render_national_trend_chart(df, year_col, party_col, share_col):
         )
         .properties(height=320)
     )
-    st.altair_chart(chart, use_container_width=True)
+    st.altair_chart(chart, width="stretch")
 
 
 def render_compact_dataframe(df, rename_map=None):
     table = df.copy()
     if rename_map:
         table = table.rename(columns=rename_map)
-    st.dataframe(table, use_container_width=True, hide_index=True)
+    st.dataframe(table, width="stretch", hide_index=True)
+
+
+def format_display_table(df, decimals=1, missing="—"):
+    table = df.copy()
+
+    def _format_value(value):
+        if pd.isna(value):
+            return missing
+        return f"{float(value):.{decimals}f}"
+
+    return table.apply(lambda col: col.map(_format_value))
 
 
 def render_profile_cards(rows, label_a, label_b):

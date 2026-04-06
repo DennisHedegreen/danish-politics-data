@@ -1,7 +1,5 @@
 # Danish Politics Data
 
-> Sorry — the live Streamlit app is not functioning reliably right now. If you want to debug it, investigate the code, or send a fix, you are very welcome.
-
 A public reading surface for Danish Folketing results at municipality level, paired with the current municipality-safe Danish factor layer.
 
 This repo is the Denmark-only public surface rebuilt from the internal World-politics-data engine. It keeps the newer app shell while exposing only Denmark data, Denmark methodology, and Denmark-specific public notes.

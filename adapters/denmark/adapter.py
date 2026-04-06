@@ -12,6 +12,7 @@ from core.presentation import (
     METRIC_PHRASES,
     METRIC_SHORT_LABELS,
     PARTY_NAME_MODES,
+    format_display_table,
     format_party_code,
     format_party_name,
     render_bar_chart,
@@ -561,10 +562,10 @@ def render(country_config, selected_country_label, runtime_context):
 
         col_main, col_surprise = st.columns([3, 1])
         with col_main:
-            if st.button("Show me what the data reveals →", type="primary", use_container_width=True, disabled=(not available_metric_keys or not parties_for_year or not cx_parties)):
+            if st.button("Show me what the data reveals →", type="primary", width="stretch", disabled=(not available_metric_keys or not parties_for_year or not cx_parties)):
                 st.session_state["explore_show"] = True
         with col_surprise:
-            if st.button("Surprise me →", use_container_width=True):
+            if st.button("Surprise me →", width="stretch"):
                 all_corr_df = precompute_all_correlations()
                 interesting = all_corr_df[all_corr_df["r"].abs() >= 0.40]
                 if not interesting.empty:
@@ -713,7 +714,7 @@ Positive r = both go up together. Negative r = they go in opposite directions.
                 points_normal = base.transform_filter(alt.datum.highlighted == False).mark_circle(size=55, color="#22d966", opacity=0.65)
                 points_highlight = base.transform_filter(alt.datum.highlighted == True).mark_circle(size=120, color="#e63946", opacity=1.0)
                 labels = base.mark_text(align="left", dx=5, dy=-4, fontSize=10, color="#5a5a6a").encode(text="label:N")
-                st.altair_chart((points_normal + points_highlight + labels).properties(height=350), use_container_width=True)
+                st.altair_chart((points_normal + points_highlight + labels).properties(height=350), width="stretch")
                 with st.expander(f"See all {len(ranked_data)} municipalities"):
                     render_compact_dataframe(ranked_data.sort_values("Vote %", ascending=False))
             elif len(s_parties) == 1 and len(s_metric_keys) > 1:
@@ -833,10 +834,10 @@ Positive r = both go up together. Negative r = they go in opposite directions.
             tab_a, tab_b = st.tabs([mun_a, mun_b])
             with tab_a:
                 st.markdown(f"**{mun_a}**")
-                st.dataframe(votes_a_display, use_container_width=True)
+                st.dataframe(votes_a_display, width="stretch")
             with tab_b:
                 st.markdown(f"**{mun_b}**")
-                st.dataframe(votes_b_display, use_container_width=True)
+                st.dataframe(votes_b_display, width="stretch")
 
         st.markdown("## Socioeconomic profile")
         st.markdown("<p style='font-size:0.82rem;color:#6a6a7a;margin-bottom:0.8rem;'>Current municipality profile using the most recent available data for each metric. Years may differ by metric. Per-1,000 and percentage factors are shown directly from the normalized public factor layer.</p>", unsafe_allow_html=True)
@@ -877,7 +878,7 @@ Positive r = both go up together. Negative r = they go in opposite directions.
         if profile_rows:
             render_profile_cards(profile_rows, mun_a, mun_b)
             with st.expander("See profile as full table"):
-                st.dataframe(pd.DataFrame(profile_rows), use_container_width=True, hide_index=True)
+                st.dataframe(pd.DataFrame(profile_rows), width="stretch", hide_index=True)
         else:
             st.info("Socioeconomic data not available for this combination.")
         st.markdown("<p style='font-size:0.68rem;color:#aaaabc;margin-top:1rem;'>Source: Danmarks Statistik (CC 4.0 BY) · Correlation ≠ causation</p>", unsafe_allow_html=True)
@@ -911,8 +912,8 @@ Positive r = both go up together. Negative r = they go in opposite directions.
             chart_df["party_label"] = chart_df["party"].apply(lambda code: format_party_code(code, metadata=country_config.party_metadata, known_parties=all_party_names, mode=party_name_mode, compact=True))
             pivot = chart_df.pivot_table(index="year", columns="party_label", values="share")
             render_national_trend_chart(chart_df, "year", "party_label", "share")
-            table = pivot.round(1).astype(object).where(pivot.notna(), "—")
-            st.dataframe(table, use_container_width=True)
+            table = format_display_table(pivot, decimals=1)
+            st.dataframe(table, width="stretch")
 
     elif page == "About & sources":
         st.subheader("About & Sources")
