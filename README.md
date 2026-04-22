@@ -4,9 +4,9 @@ Danish Politics Data compares Danish Folketing vote shares with municipality-lev
 
 ## Public Door
 
-- TID door: `https://hedegreenresearch.com/tid/danish-politics-data/`
-- Live app: `https://danish-politics-data-nrfnkgn3zsm4jmhamsxzay.streamlit.app/`
-- GitHub repo: `https://github.com/DennisHedegreen/danish-politics-data`
+- TID door: [hedegreenresearch.com/tid/danish-politics-data](https://hedegreenresearch.com/tid/danish-politics-data/)
+- Live app: [danish-politics-data Streamlit app](https://danish-politics-data-nrfnkgn3zsm4jmhamsxzay.streamlit.app/)
+- GitHub repo: [DennisHedegreen/danish-politics-data](https://github.com/DennisHedegreen/danish-politics-data)
 
 ## Declared Scope
 
