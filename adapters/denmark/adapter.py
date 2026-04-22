@@ -7,7 +7,7 @@ import altair as alt
 import pandas as pd
 import streamlit as st
 
-from core.correlation import compute_correlation_result, corr_strength_label
+from core.correlation import compute_correlation_result, corr_strength_label, rank_correlation_results
 from core.presentation import (
     METRIC_PHRASES,
     METRIC_SHORT_LABELS,
@@ -723,7 +723,7 @@ Positive r = both go up together. Negative r = they go in opposite directions.
                 if not valid_results:
                     st.markdown('<div class="finding weak"><div class="strength-tag">NO VALID RESULT</div><div class="headline">No valid correlation result available</div><div class="body">None of the selected factor-party combinations produced a valid correlation value. No strongest signal is shown.</div></div>', unsafe_allow_html=True)
                     return
-                ranked = sorted(valid_results, key=lambda x: abs(float(x["r"])), reverse=True)
+                ranked = rank_correlation_results(valid_results)
                 summary = pd.DataFrame([{"Factor": r["factor"], "Label": METRIC_SHORT_LABELS.get(r["factor"], r["factor"]), "r": r["r"], "Strength": r["strength"]} for r in ranked])
                 st.markdown("<p style='font-size:0.75rem;color:#aaaabc;margin-bottom:0.3rem;'>Results are ranked by correlation strength (absolute value). Positive = more votes where factor is higher. Negative = more votes where factor is lower.</p>", unsafe_allow_html=True)
                 render_bar_chart(summary, "Label", "r", tooltip_label="Factor", full_label_col="Factor")
@@ -744,7 +744,7 @@ Positive r = both go up together. Negative r = they go in opposite directions.
                 if not valid_results:
                     st.markdown('<div class="finding weak"><div class="strength-tag">NO VALID RESULT</div><div class="headline">No valid correlation result available</div><div class="body">None of the selected factor-party combinations produced a valid correlation value. No strongest signal is shown.</div></div>', unsafe_allow_html=True)
                     return
-                ranked = sorted(valid_results, key=lambda x: abs(float(x["r"])), reverse=True)
+                ranked = rank_correlation_results(valid_results)
                 summary = pd.DataFrame([{"Party": format_party_name(r["party"], metadata=country_config.party_metadata, mode=party_name_mode, compact=True, include_code=True), "Party_full": format_party_name(r["party"], metadata=country_config.party_metadata, mode=party_name_mode, include_code=True), "r": r["r"], "Strength": r["strength"]} for r in ranked])
                 st.markdown("<p style='font-size:0.75rem;color:#aaaabc;margin-bottom:0.3rem;'>Results are ranked by correlation strength (absolute value). Positive = more votes where factor is higher. Negative = more votes where factor is lower.</p>", unsafe_allow_html=True)
                 render_bar_chart(summary, "Party", "r", tooltip_label="Party", full_label_col="Party_full")

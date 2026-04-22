@@ -235,11 +235,11 @@ def get_country_config(country_id: str) -> CountryConfig:
 
 
 def list_public_countries() -> list[CountryConfig]:
-    return [COUNTRY]
+    return [COUNTRY] if COUNTRY.public_ready else []
 
 
 def list_internal_countries() -> list[CountryConfig]:
-    return [COUNTRY]
+    return [COUNTRY] if COUNTRY.internal_ready else []
 
 
 def country_data_pack_exists(config: CountryConfig) -> bool:
@@ -263,6 +263,11 @@ def list_exposed_countries(
     require_data_pack: bool = True,
 ) -> list[CountryConfig]:
     allowed = _normalize_allowed_country_ids(allowed_country_ids)
+    if allow_internal:
+        if not COUNTRY.internal_ready:
+            return []
+    elif not COUNTRY.public_ready:
+        return []
     if allowed is None:
         if require_data_pack and not country_data_pack_exists(COUNTRY):
             return []

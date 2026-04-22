@@ -4,14 +4,18 @@ import unittest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from country_registry import get_country_config, list_exposed_public_countries
+from country_registry import get_country_config, list_exposed_countries, list_exposed_public_countries
 
 
 class PublicSurfaceContractTests(unittest.TestCase):
     def test_single_country_registry(self):
-        countries = list_exposed_public_countries()
+        countries = list_exposed_countries(["denmark"], allow_internal=False)
         self.assertEqual(len(countries), 1)
         self.assertEqual(countries[0].country_id, "denmark")
+
+    def test_public_visibility_flag(self):
+        countries = list_exposed_public_countries()
+        self.assertEqual(len(countries), 1)
 
     def test_country_config_matches_public_surface(self):
         config = get_country_config("denmark")
